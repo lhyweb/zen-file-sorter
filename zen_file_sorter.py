@@ -1,11 +1,9 @@
-import os
-import shutil
-import json
-import re
-import time
+import os, shutil, time, subprocess
+from collections import Counter
+import json, re
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
-from collections import Counter
+
 
 try:
     from pymediainfo import MediaInfo
@@ -28,27 +26,26 @@ ZIP_FORMATS = (".zip", ".rar", ".7z")
 OTHER_DEFAULT_SUFFIX = ".doc;.docx;.pdf;.txt;.xls;.xlsx"
 ADS_SUFFIX = ":zen_mv_data"
 DEFAULT_MAX_ROW = 10
-NORMAL_FONT = ("微软雅黑", 11)
-SMALL_FONT = ("微软雅黑", 10)
-
-DEFAULT_TAG_MAIN = [
-    "动作",
-    "喜剧",
-    "爱情",
-    "悬疑",
-    "科幻",
-    "仙侠",
-    "刑侦",
-    "纪实",
-    "动画",
-    "舞蹈",
-]
+UI_MAIN_BT_PADX = 1
+DEFAULT_TAG_MAIN = ["动作", "喜剧", "爱情", "悬疑","动画", "舞蹈"]
 DEFAULT_TAG_EXTRA = ["大陆", "大陆", "港台", "日韩", "欧美"]
 
+# =====================版本信息备忘【锁定】=====================
 MEDIA_MANAGER_TITLE = "媒体文件分类管理工具"
-MEDIA_MANAGER_VERSON = "v2.1.7"
+MEDIA_MANAGER_VERSON = "v2.1.9"
 MEDIA_MANAGER_AUTHOR = "zen(lhywbe@mail.com)&doubao"
 MEDIA_MANAGER_LOG = """
+v2.1.9 
+1、UI优化，自制主题、配色、字体、切换模块
+2、增加精简模式，仅显示打分标签功能界面，并置顶透明显示
+3、优化标签统计、功能， 直接在右键点击窗口编辑，标签应用增加快捷键
+4、优化多个模块
+
+v2.1.8
+1、优化UI，尝试切换CustomTkiter,难以优化已回滚
+2、优化性能，进一步优化磁盘I/O批量读取功能的模块，尽量优化改为纯内存处理，仅读取变动项目
+2、增加置顶小窗口实现快速打分
+
 v2.1.7 
 1、扫描目录的增加生效、禁用切换功能
 2、优化布局、控件排版、文本，修复bug
@@ -58,77 +55,9 @@ v2.1.6 基本稳定版本
 1、修复多处BUG，提升整体运行稳定性
 2、优化全局UI布局，统一所有控件排版、尺寸与字体样式
 3、新增浅色/深色模式切换，支持日夜界面切换
-
-v2.1.5 优化便捷操作
-1、优化Treeview选中刷新机制，完善双击打开目录或打开文件
-2、增设上一个/下一个快捷切换按钮，搭配独立勾选开关实现切完自动打开，适配单手批量处理流程
-3、完善媒体扫描与列表刷新逻辑，尝试接入图片EXIF识别，因技术难度暂时简化适配
-4、优化窗口焦点取回逻辑，解决播放器抢占焦点、快捷键失效问题
-
-v2.1.4 优化便捷操作
-1、优化NTFS-ADS标签写入逻辑，做到标签更新不改动文件原始修改时间
-2、完善批量标签、星级编辑能力，全面支持单条/批量素材属性修改
-3、修复部分特殊素材分辨率读取异常、信息缺失问题
-
-v2.1.3 优化便捷操作
-1、添加复合筛选体系，完善清晰度、星级、分类多条件联动检索
-2、优化关键词模糊匹配算法，大幅提升素材检索精准度
-3、新增全局键盘快捷键，支持快捷键快速评分、操作
-
-v2.1.2
-1、重写标签统计与盘点核心逻辑，可识别无效、游离标签，完善标签频次统计、标签规整清理功能
-2、重构标签管理UI，实现界面组件复用，提升扩展性
-v2.1.1
-1、优化主界面布局，新增主界面快速重命名功能
-2、升级批量打标重命名逻辑，强化容错机制，规避特殊字符、超长文件名报错
-3、修复Toplevel弹窗残留问题，解决弹窗导致主窗口无法正常关闭的BUG
-v2.1.0
-1、新增快捷标签组 1-5、快捷移动目录 1-5，完善二次确认弹窗与执行逻辑
-2、全局操作统一优化，全部功能支持单条操作与批量处理
-3、新增ADS标签导出、备份与还原功能，解决跨分区、跨设备迁移难题
-4、修复极端场景下文件标签数据丢失、读取异常的BUG
-
-v2.0.0 架构重构版本
-1、项目复杂度大幅提升，开发模式由面向豆包喊话转为面向电脑开发
-2、全盘重构项目架构，优化全局代码逻辑与运行效率
-3、磁盘IO全面优化，大量数据改用内存字典预加载，大幅提升扫描与检索速度
-4、全新改版管理界面，统一功能布局，支持配置保存与快速切换
-5、支持多场景方案切换，可快速切换不同目录组、标签组配置，适配多套素材库管理
-
-v1.6.0
-1、新增独立设置界面，全局配置统一收纳管理
-2、优化软件整体界面布局与文字展示，统一交互逻辑，提升使用体验
-
-v1.5.0
-1、重构标签数据结构，旧题材/演员标签升级为【主内容标签+附加标签】、移除备注标签，
-2、开发旧标签数据迁移兼容逻辑，完美兼容v1.0-v1.4历史素材数据
-v1.4.0
-1、软件定位升级：从小视频管理工具升级为多类型素材整理管理工具
-2、新增音频、图片、压缩包、其他文档支持
-3、新增目录管理模块，支持批量增删扫描目录
-4、完善多格式文件识别、筛选、加载逻辑，统一全类型素材管理规范
-
-v1.3.0
-1、新增标签统计可视化和编辑面板，直观展示标签使用频次与分布
-2、主界面组件支持自定义布局，界面可灵活定制适配个人习惯
-
-v1.2.0
-1、实现标签批量重命名，自动根据星级、标签拼接文件名
-2、支持一键逆向还原原始文件名，方便文件迁移与分享
-3、优化文件删除逻辑，增加校验与容错，规范素材删除流程
-
-v1.1.0
-1、新增多维度组合筛选功能，精准过滤素材库目标文件
-2、标签存储体系升级为 NTFS-ADS 备用数据流方案
-3、优化标签读写机制，不篡改文件本体、不改动文件属性，数据更安全稳定
-
-v1.0.0 初始功能稳定版本
-1、搭建软件基础运行框架，支持主流视频格式识别与解析
-2、实现素材目录添加、手动重新扫描、列表刷新基础能力
-3、标签体系：题材、演员、评分、备注四维度标签管理
 """
 MEDIA_MANAGER_INFO = """
-本工具是面向本地音视频、图集素材和额外文件的轻量化资源管理软件，依托 NTFS-ADS 备用数据流做标签存储。针对整理、分类的需求的打磨：方便归类、方便整理、方便打开、方便转移，展开说说
+本工具是面向本地音视频、图集和各类文件素材的轻量化管理工具，实现更方便归类、整理、打分、转移。为实现轻量化和边界转移，依托 NTFS-ADS 备用数据流做标签存储。
 核心功能
 1、自动遍历自定义本地目录，区分视频 / 音频 / 图片 / 压缩包 / 自定义文档，调用 MediaInfo、Pillow 自动读取视频图片分辨率进行记录。
 2、多维度标签与星级管理：自定义分容分类、附属附加标签库，五星评分标记资源；支持单选 / 批量修改标签、星级，数据持久化存入 ADS 或附属标签文件。
@@ -136,11 +65,9 @@ MEDIA_MANAGER_INFO = """
 5、批量命名 ：一键批量将【星级 + 内容 + 附加】拼接为文件名后缀；随时一键逆向剔除标签后缀，还原文件初始名称，方便结合文件管理器搜索转移。
 6、标签统计盘点：自动统计在用标签频次，区分系统标准标签、游离无效标签，快速清理不规范标签，统一资源库分类规范。
 """
-
+# =====================全局函数【锁定】=====================
 # 清晰度：取画面短边判定，横竖屏通用【V2.1修订】
 DEF_ALL = ["全部", "8K", "6K", "4K", "2K", "1080P", "720P", "SD", "LD", "未知"]
-
-
 def get_def_by_height(short_px):
     if short_px >= 4320:
         return "8K"
@@ -158,111 +85,268 @@ def get_def_by_height(short_px):
         return "SD"
     else:
         return "LD"
+ZEN_THEME = {
+    "name":"默认配色",# 配色名字
+    "base_theme": "vista",  # 这里用 vista
+    "bg_main": "#f0f0f0",  # 窗口/控件 背景
+    "fg_main": "#000000",  # 文字颜色
+    "bg_field": "#ffffff",  # 输入框/列表背景
+    "border": "#7f9db9",  # 控件边框
+    "select": "#3399ff",  # 选中高亮
+    "trough": "#e6e6e6",  # 进度条凹槽
+    "bar": "#3399ff",  # 进度条填充
+    "arrow": "#000000",  # 下拉箭头
+    "hover": "#e5f3ff",  # 按钮/控件 hover
+}
+ZEN_FONT_S=["Microsoft YaHei",10]
+ZEN_FONT=["Microsoft YaHei",11]
+ZEN_FONT_L=["Times New Roman", 12]
 
-
-# =====================全局函数【锁定】=====================
 def cycle_theme():
-    # 循环索引：0=浅色 1=护眼深色 2=VS深色 3=商务低饱和
-    if not hasattr(cycle_theme, "idx"):
-        cycle_theme.idx = 1
-
-    cycle_theme.idx = (cycle_theme.idx + 1) % 4
-
+    """极简：循环切换系统自带主题 + 应用全局字体"""
+    # 拿到当前主题索引
     style = ttk.Style()
-    style.theme_use("clam")  # 必须保留，否则颜色无效
-    idx = cycle_theme.idx
-
-    # ========== 四套配色方案 ==========
-    if idx == 0:
-        # 浅色清爽
-        bg, fg, field, border, select, trough, bar, arrow, hover = (
-            "#f7f8fa",
-            "#222222",
-            "#ffffff",
-            "#d2d6dc",
-            "#2574cc",
-            "#e5e5e5",
-            "#2574cc",
-            "#333333",
-            "#e0e0e0",
-        )
-    elif idx == 1:
-        # 护眼柔和深色
-        bg, fg, field, border, select, trough, bar, arrow, hover = (
-            "#292c33",
-            "#e9ecef",
-            "#353942",
-            "#4b5059",
-            "#365b86",
-            "#40444b",
-            "#4a8fdb",
-            "#cccccc",
-            "#444444",
-        )
-    elif idx == 2:
-        # VS Code 经典深色
-        bg, fg, field, border, select, trough, bar, arrow, hover = (
-            "#1e1e1e",
-            "#d4d4d4",
-            "#252526",
-            "#3e3e42",
-            "#094771",
-            "#3c3c3c",
-            "#007acc",
-            "#cccccc",
-            "#3a3a3a",
-        )
+    theme_list = ["classic", "clam", "alt", "default"]
+    if style.theme_use() == "vista":
+        ZEN_THEME["base_theme"] = "alt"
     else:
-        # 商务低饱和深色
-        bg, fg, field, border, select, trough, bar, arrow, hover = (
-            "#24272e",
-            "#e2e8f0",
-            "#2f333b",
-            "#404652",
-            "#235487",
-            "#373c46",
-            "#3182ce",
-            "#cccccc",
-            "#3d424b",
-        )
+        ZEN_THEME["base_theme"] = theme_list[
+            (theme_list.index(style.theme_use()) + 1) % len(theme_list)
+        ]
+    style.theme_use(ZEN_THEME["base_theme"])
+    ZEN_THEME["base_theme"] = style.theme_use()
+    ZEN_THEME["bg_main"] = style.lookup("TFrame", "background")
+    ZEN_THEME["fg_main"] = style.lookup("TLabel", "foreground")
+    ZEN_THEME["bg_field"] = style.lookup("TEntry", "fieldbackground")
+    ZEN_THEME["border"] = style.lookup("TCombobox", "bordercolor")
+    ZEN_THEME["select"] = style.lookup("Treeview", "background", ("selected",))
+    ZEN_THEME["trough"] = style.lookup("TScrollbar", "troughcolor")
+    ZEN_THEME["bar"] = style.lookup("TScrollbar", "background")
+    ZEN_THEME["arrow"] = style.lookup("TCombobox", "arrowcolor")
+    ZEN_THEME["hover"] = style.lookup("TButton", "background", ("active",))
 
+    # 应用 ZEN_THEME 里的全局字体
+    font_size_adjust()
+
+
+def font_size_adjust(step=0,mode="ALL"):
+    if mode=="BOTH":
+        ZEN_FONT_S[1]+= step
+        ZEN_FONT[1]+= step
+    elif mode=="ALL":
+        ZEN_FONT_S[1]+= step
+        ZEN_FONT[1]+= step
+        ZEN_FONT_L[1]+= step
+    elif mode=="A":
+        ZEN_FONT[1]+= step
+    elif mode=="T":
+        ZEN_FONT_S[1]+= step
+    elif mode=="L":
+        ZEN_FONT_L[1]+= step
+    else:
+        return
+    root.option_add("*Font", ZEN_FONT)
+    # root.option_add("*TCombobox*Listbox.font", ZEN_FONT)
     style = ttk.Style()
-    # ========== 同步主窗口背景 ==========
-    try:
-        global root
-        root.config(bg=bg)
-        root.option_add("*Font", NORMAL_FONT)  # 字体
-    except:
-        pass
+    widgets_n = [
+        ".",
+        "TButton",
+        "TCheckbutton",
+        "TRadiobutton",
+        "TLabel",
+        "TEntry",
+        "TCombobox",
+        "TSpinbox",
+        "TScale",
+        "TFrame",
+        "TLabelFrame",
+        "TScrollbar",
+    ]
+    for widget in widgets_n:
+        style.configure(widget, font=ZEN_FONT)
+    widgets_s = [
+        "Treeview.Heading",
+        "Treeview",
+    ]
+    for widget in widgets_s:
+        style.configure(widget, font=ZEN_FONT_S)
 
-    # ========== 全局基础样式 ==========
-    style.configure(".", background=bg, foreground=fg, bordercolor=border)
-    style.configure("TFrame", background=bg)
-    style.configure("TLabel", background=bg, foreground=fg)
-    style.configure("TEntry", fieldbackground=field, foreground=fg, bordercolor=border)
-    # ========== 字体换用雅黑==========
-    style.configure("TLabel", font=NORMAL_FONT)
-    style.configure("TButton", font=NORMAL_FONT)
-    style.configure("TEntry", font=NORMAL_FONT)
-    style.configure("TRadiobutton", font=NORMAL_FONT)
-    style.configure("TCheckbutton", font=SMALL_FONT)
-    style.configure("Vertical.TScrollbar", gripcount=0)
 
-    # ========== 按钮 (关键：鼠标悬浮颜色) ==========
-    style.configure("TButton", background=bg, foreground=fg, bordercolor=border)
+def cycle_color():
+
+    # ===================== 主题方案 =====================
+    theme_presets = [
+    {"name":"复古茶棕","bg_main":"#f3ede0","fg_main":"#4b3f2e","bg_field":"#faf5eb","border":"#c9b99e","select":"#a67c52","trough":"#e9dfcc","bar":"#a67c52","arrow":"#705e43","hover":"#e8dcc5"},
+    {"name":"基础浅灰","bg_main":"#f7f8fa","fg_main":"#222222","bg_field":"#ffffff","border":"#d2d6dc","select":"#2574cc","trough":"#e5e5e5","bar":"#2574cc","arrow":"#333333","hover":"#e0e0e0"},
+    {"name":"深蓝灰","bg_main":"#292c33","fg_main":"#e9ecef","bg_field":"#353942","border":"#4b5059","select":"#365b86","trough":"#40444b","bar":"#4a8fdb","arrow":"#cccccc","hover":"#444444"},
+    {"name":"VS经典深色","bg_main":"#1e1e1e","fg_main":"#d4d4d4","bg_field":"#252526","border":"#3e3e42","select":"#094771","trough":"#3c3c3c","bar":"#007acc","arrow":"#cccccc","hover":"#3a3a3a"},
+    {"name":"极客深色","bg_main":"#24272e","fg_main":"#e2e8f0","bg_field":"#2f333b","border":"#404652","select":"#235487","trough":"#373c46","bar":"#3182ce","arrow":"#cccccc","hover":"#3d424b"},
+    {"name":"马卡龙浅紫","bg_main":"#f8f5fc","fg_main":"#3c314e","bg_field":"#ffffff","border":"#cbbde2","select":"#927bcc","trough":"#efeaf7","bar":"#927bcc","arrow":"#6b5b87","hover":"#ede4f7"},
+   {"name":"深海冷调","bg_main":"#f2f7fa","fg_main":"#1f364d","bg_field":"#ffffff","border":"#9cb8cc","select":"#1890ff","trough":"#e4edf3","bar":"#1890ff","arrow":"#406482","hover":"#dcecf7"},
+    {"name":"暖调日系米白","bg_main":"#faf7f0","fg_main":"#3a3731","bg_field":"#fffdf8","border":"#d9d2c3","select":"#c7a87e","trough":"#f0ebe0","bar":"#c7a87e","arrow":"#6e6655","hover":"#f5efe0"},
+    {"name":"暗夜青灰","bg_main":"#24292e","fg_main":"#d1d9e0","bg_field":"#2f363d","border":"#444c56","select":"#4ea3ff","trough":"#373e47","bar":"#4ea3ff","arrow":"#8b98a4","hover":"#303841"},
+    {"name":"高对比橙白","bg_main":"#f9f9f9","fg_main":"#1a1a1a","bg_field":"#ffffff","border":"#b0b0b0","select":"#ff7d00","trough":"#eaeaea","bar":"#ff7d00","arrow":"#333333","hover":"#fff0e0"},
+    {"name":"轻奢烟灰","bg_main":"#eef0f2","fg_main":"#2c3137","bg_field":"#f8f9fa","border":"#a9b0b8","select":"#59718a","trough":"#e0e3e7","bar":"#59718a","arrow":"#474f59","hover":"#e2e6eb"},
+    {"name":"浆果红棕","bg_main":"#f7f2f2","fg_main":"#482c2c","bg_field":"#fdf8f8","border":"#cba3a3","select":"#b74c4c","trough":"#ede4e4","bar":"#b74c4c","arrow":"#7a4f4f","hover":"#f3e8e8"}
+]
+    style = ttk.Style()
+        # 初始化主题索引
+    if not hasattr(cycle_color, "theme_idx"):
+        cycle_color.theme_idx = 6
+        cycle_color.listbox_items = []
+        cycle_color.text_items = []
+    
+    # 切换底层主题
+    if style.theme_use() == "vista":ZEN_THEME["base_theme"] = "alt"
+    style.theme_use(ZEN_THEME["base_theme"])
+    
+    cycle_color.theme_idx = (cycle_color.theme_idx + 1) % len(theme_presets)
+    current = theme_presets[cycle_color.theme_idx]
+    # zen_toast(root,ZEN_THEME["base_theme"]+current["name"],3000)
+    # 同步到全局 ZEN_THEME
+    for k, v in current.items():
+        ZEN_THEME[k] = v
+
+    # ===================== 统一生成字体 =====================
+
+    # 简化变量
+    bg_main = ZEN_THEME["bg_main"]
+    fg_main = ZEN_THEME["fg_main"]
+    bg_field = ZEN_THEME["bg_field"]
+    border = ZEN_THEME["border"]
+    select = ZEN_THEME["select"]
+    trough = ZEN_THEME["trough"]
+    bar = ZEN_THEME["bar"]
+    arrow = ZEN_THEME["arrow"]
+    hover = ZEN_THEME["hover"]
+    base_theme = ZEN_THEME["base_theme"]
+
+    # ===================== 全局样式 =====================
+    root.option_add("*Font", ZEN_FONT)
+    root.config(bg=bg_main)
+
+    style.configure(
+        ".",
+        background=bg_main,
+        foreground=fg_main,
+        bordercolor=border,
+        focusthickness=0,
+        focuscolor="none",
+    )
+
+    style.configure("TFrame", background=bg_main)
+    style.configure("TLabel", background=bg_main, foreground=fg_main)
+    style.configure(
+        "TEntry",
+        fieldbackground=bg_field,
+        foreground=fg_main,
+        bordercolor=border,
+    )
+
+    # 按钮
+    style.configure(
+        "TButton",
+        background=bg_main,
+        foreground=fg_main,
+        relief="flat",
+        borderwidth=0,
+        padding=(8, 3),
+    )
     style.map(
         "TButton",
         background=[("active", hover)],
-        foreground=[("active", "white" if idx != 0 else "black")],
+        foreground=[("active", "white" if bg_main != "#f7f8fa" else "black")],
     )
 
-    # ========== 复选框 / 单选框 ==========
-    style.configure("TCheckbutton", background=bg, foreground=fg)
-    style.map("TCheckbutton", background=[("active", hover)])
+    # 复选框 / 单选框
+    style.configure("TCheckbutton", background=bg_main, foreground=fg_main)
+    style.map(
+        "TCheckbutton",
+        background=[("active", hover)],
+        indicatorcolor=[("selected", select), ("!selected", border)],
+    )
+    style.configure("TRadiobutton", background=bg_main, foreground=fg_main)
+    style.map(
+        "TRadiobutton",
+        background=[("active", hover)],
+        indicatorcolor=[("selected", select), ("!selected", border)],
+    )
 
-    # ========== Treeview + 底部空白区域 ==========
+    # 滚动条
     style.configure(
-        "Treeview", background=bg, fieldbackground=bg, foreground=fg, bordercolor=border
+        "Vertical.TScrollbar",
+        background=select,
+        troughcolor=bg_field,
+        width=8,
+        arrowsize=0,
+    )
+    style.configure(
+        "Horizontal.TScrollbar",
+        background=select,
+        troughcolor=bg_field,
+        height=8,
+        arrowsize=0,
+    )
+
+    # 下拉框
+    style.configure(
+        "TCombobox",
+        fieldbackground=bg_field,
+        background=bg_field,
+        foreground=fg_main,
+        arrowcolor=arrow,
+        bordercolor=border,
+        lightcolor=bg_field,
+        darkcolor=border,
+    )
+    style.map(
+        "TCombobox",
+        selectbackground=[("focus", select)],
+        selectforeground=[("focus", "white")],
+        fieldbackground=[("readonly", bg_field), ("focus", bg_field)],
+    )
+    root.option_add("*TCombobox*Listbox.background", bg_field)
+    root.option_add("*TCombobox*Listbox.foreground", fg_main)
+    root.option_add("*TCombobox*Listbox.selectBackground", select)
+    root.option_add("*TCombobox*Listbox.selectForeground", "white")
+
+    # 进度条 / 滑动条
+    style.configure(
+        "Horizontal.TProgressbar",
+        troughcolor=trough,
+        background=bar,
+        bordercolor=border,
+    )
+    style.configure(
+        "Horizontal.TScale",
+        background=bg_main,
+        troughcolor=bg_field,
+        slidercolor=select,
+        bordercolor=border,
+        lightcolor=select,
+        darkcolor=select,
+    )
+
+    # 表格
+    style.configure(
+        "Treeview",
+        background=bg_main,
+        foreground=fg_main,
+        fieldbackground=bg_main,
+        bordercolor=border,
+        rowheight=24,
+    )
+    style.configure(
+        "Treeview.Heading",
+        background=bg_field,
+        foreground=fg_main,
+        bordercolor=border,
+        relief="flat",
+    )
+    style.map(
+        "Treeview.Heading",
+        background=[("active", bg_field)],
+        foreground=[("active", bg_main)],
     )
     style.map(
         "Treeview",
@@ -270,73 +354,85 @@ def cycle_theme():
         foreground=[("selected", "white")],
     )
 
-    # ========== 下拉框 Combobox ==========
-    style.configure(
-        "TCombobox",
-        fieldbackground=field,
-        background=bg,
-        foreground=fg,
-        arrowcolor=arrow,
-        bordercolor=border,
+    # ===================== 1. 应用样式并添加Listbox =====================
+    def apply_listbox(lb: tk.Listbox):
+        lb.config(
+            bg=bg_field,
+            fg=fg_main,
+            selectbackground=select,
+            selectforeground="white",
+            font=ZEN_FONT,
+        )
+        if lb not in cycle_color.listbox_items:
+            cycle_color.listbox_items.append(lb)
+
+    # ===================== 2. 应用样式并添加Text =====================
+    def apply_text(txt: tk.Text):
+        txt.config(bg=bg_field, fg=fg_main, insertbackground=fg_main, font=ZEN_FONT)
+        if txt not in cycle_color.text_items:
+            cycle_color.text_items.append(txt)
+
+    # ===================== 3. 统一刷新（完全复用上面两个函数） =====================
+    def refresh_widgets():
+        # 刷新 Listbox
+        for i in reversed(range(len(cycle_color.listbox_items))):
+            try:
+                apply_listbox(cycle_color.listbox_items[i])
+            except Exception:
+                del cycle_color.listbox_items[i]
+
+        # 刷新 Text
+        for i in reversed(range(len(cycle_color.text_items))):
+            try:
+                apply_text(cycle_color.text_items[i])
+            except Exception:
+                del cycle_color.text_items[i]
+
+    # 暴露函数给外部使用
+    cycle_color.apply_listbox = apply_listbox
+    cycle_color.apply_text = apply_text
+    cycle_color.refresh_widgets = refresh_widgets
+    # 切换主题后自动刷新
+    refresh_widgets()
+    font_size_adjust()
+
+
+# ===================== 自定义主题弹窗 =====================
+def zen_toast(root, msg, duration=15000):
+    transp = "#010101"
+    bg = "#64B177"
+    fg = "#DC3535"
+    toast = tk.Toplevel(root)
+    toast.overrideredirect(True)
+    toast.attributes("-topmost", True)
+    toast.attributes("-transparentcolor", transp)
+    toast.config(bg=transp)
+
+    lb1 = ttk.Label(
+        toast,
+        text=msg,
+        background=transp,
+        foreground=ZEN_THEME["fg_main"],
+        font=ZEN_FONT_L,
+        padding=(20, 9),
     )
-    style.map(
-        "TCombobox",
-        fieldbackground=[("readonly", field)],
-        background=[("active", hover)],
-    )
+    lb1.pack()
 
-    # ========== 进度条 ==========
-    style.configure(
-        "Horizontal.TProgressbar",
-        troughcolor=trough,
-        background=bar,
-        bordercolor=border,
-    )
+    # 关闭函数
+    def close_toast(e=None):
+        try:
+            toast.destroy()
+        except:
+            pass
 
-    # ========== 滚动条 ==========
-    style.configure(
-        "Vertical.TScrollbar", background=select, troughcolor=field, bordercolor=border
-    )
-    style.configure(
-        "Horizontal.TScrollbar",
-        background=select,
-        troughcolor=field,
-        bordercolor=border,
-    )
+    lb1.bind("<Button-1>", close_toast)
+    toast.bind("<Button-1>", close_toast)
 
-
-def zen_msgbox(title, message):
-    # 创建弹窗（自动继承主窗口字体）
-    msg_win = tk.Toplevel()
-    msg_win.title(title)
-    msg_win.transient(root)  # 绑定主窗口
-    msg_win.grab_set()  # 模态弹窗（必须关掉才能点主窗口）
-    msg_win.resizable(False, False)
-
-    # 文字靠左 + 自适应 + 全局字体
-    label = tk.Label(
-        msg_win,
-        text=message,
-        font=NORMAL_FONT,  # 自动用全局字体
-        justify=tk.LEFT,  # 文字靠左 ✅
-        wraplength=380,  # 最大宽度，超过自动换行
-        anchor="w",  # 内容靠左
-    )
-    label.pack(expand=True, fill=tk.BOTH)
-
-    # 按钮（全局字体 + 美观）
-    btn = tk.Button(msg_win, text="确定", font=NORMAL_FONT, command=msg_win.destroy)
-    btn.pack(pady=(0, 12))
-
-    # 【核心：自适应大小】自动计算窗口尺寸 ✅
-    msg_win.update_idletasks()
-    w = msg_win.winfo_width()
-    h = msg_win.winfo_height()
-
-    # 居中显示
-    x = root.winfo_x() + (root.winfo_width() // 2) - (w // 2)
-    y = root.winfo_y() + (root.winfo_height() // 2) - (h // 2)
-    msg_win.geometry(f"+{x}+{y}")
+    toast.update_idletasks()
+    x = root.winfo_x() + (root.winfo_width() - toast.winfo_width()) // 2
+    y = root.winfo_y() + root.winfo_height() - toast.winfo_height() - 40
+    toast.geometry(f"+{x}+{y}")
+    toast.after(duration, close_toast)
 
 
 # =====================弹窗类【锁定】=====================
@@ -348,13 +444,15 @@ class TagsManagerUI(tk.Toplevel):
         self.root = master_root
         self.app = app_obj
         self.title(win_title)
-        self.geometry("420x600")
+        self.geometry("420x760")
         self.transient(self.root)
         self.columnconfigure((0, 1), weight=1)
         self.rowconfigure(0, weight=1)
         self.grab_set()
         self.txt = tk.Text(self, padx=10, pady=10)
         self.txt2 = tk.Text(self, padx=10, pady=10)
+        cycle_color.apply_text(self.txt)
+        cycle_color.apply_text(self.txt2)
         self.txt.grid(row=0, column=0, padx=2, pady=2, sticky="nsew")
         self.txt2.grid(row=0, column=1, padx=2, pady=2, sticky="nsew")
         if mode == "EDIT":
@@ -386,7 +484,6 @@ class TagsManagerUI(tk.Toplevel):
         self.destroy()
 
     def calc_show(self):
-
         tagm_count_dict = {item: 0 for item in self.app.config_data.get("tag_main", [])}
         tage_count_dict = {
             item: 0 for item in self.app.config_data.get("tag_extra", [])
@@ -430,6 +527,7 @@ class AboutUI(tk.Toplevel):
         self.transient(self.root)
         self.grab_set()
         txt = tk.Text(self, font=("微软雅黑", 10))
+        cycle_color.apply_text(txt)
         txt.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
         txt.insert(
             "1.0",
@@ -462,7 +560,10 @@ class SettingUI(tk.Toplevel):
         self.prefix_no = "☐ "
         self.build_ui()
         self.load_data()
-
+    def open_edit_tag(self):
+        TagsManagerUI(self.root, self.app, "编辑分类标签：按行区分，直接修改好退出即保存生效", "EDIT")
+    def open_calc_tag(self):
+        TagsManagerUI(self.root, self.app, "统计分类标签", "CALC")
     def open_config_sel(self):
         ConfigSelectUI(self.root, self.app)
 
@@ -488,21 +589,24 @@ class SettingUI(tk.Toplevel):
         main_fr = ttk.Frame(self, padding=10)
         main_fr.pack(fill=tk.BOTH, expand=True)
         fr_cfg = ttk.LabelFrame(
-            main_fr, text="⚙配置管理：实现对不同目录、文件类型、分类的分组设置"
+            main_fr, text="⚙配置管理：设定组（总体设置）、界面配色、字体大小设置"
         )
         fr_cfg.pack(fill=tk.X, pady=4)
         ttk.Button(fr_cfg, text="≣切换配置", command=self.open_config_sel).pack(
             side=tk.LEFT, padx=2
         )
-        ttk.Button(fr_cfg, text="🎨切换配色", command=cycle_theme).pack(
-            side=tk.LEFT, padx=2
-        )
-        ttk.Button(
-            fr_cfg, text="↺重新扫描文件", command=self.force_refresh_all_file
-        ).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_cfg,text="🎨切换主题",command=lambda: (cycle_theme(), self.app.refresh_file_list()),).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_cfg,text="🎨切换配色",command=lambda: (cycle_color(), self.app.refresh_file_list()),).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_cfg, text="A+", command=lambda: font_size_adjust(1,"A"), width=3).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_cfg, text="A-", command=lambda: font_size_adjust(-1,"A"), width=3).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_cfg, text="T+", command=lambda: font_size_adjust(1,"T"), width=3).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_cfg, text="T-", command=lambda: font_size_adjust(-1,"T"), width=3).pack(side=tk.LEFT, padx=2)
+
+
         fr_dir = ttk.LabelFrame(main_fr, text="🗁扫描目录")
         fr_dir.pack(fill=tk.X, pady=4)
         self.dir_lb = tk.Listbox(fr_dir, height=4)
+        cycle_color.apply_listbox(self.dir_lb)
         self.dir_lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
         dir_btn = ttk.Frame(fr_dir)
         dir_btn.pack(side=tk.RIGHT, padx=5)
@@ -544,19 +648,36 @@ class SettingUI(tk.Toplevel):
         ttk.Label(line2, text="后缀名用;分隔").pack(side=tk.LEFT)
         fr_tag = ttk.LabelFrame(
             main_fr,
-            text="★分类管理：显示设置以及备份、还原全部文件的ads标签，位置是每个目录的ads_tags.txt",
+            text="★标签管理",
         )
         fr_tag.pack(fill=tk.X, pady=(8, 0))
         ttk.Label(fr_tag, text="每列行数：").pack(side=tk.LEFT, padx=(15, 3))
         ttk.Entry(fr_tag, textvariable=self.str_max_row, width=6).pack(side=tk.LEFT)
         ttk.Button(
-            fr_tag, text="批量备份ADStoTXT", command=self.backup_all_folder_ads
+            fr_tag, text="▦标签统计", command=self.open_calc_tag
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(
+            fr_tag, text="🖍标签编辑", command=self.open_edit_tag
+        ).pack(side=tk.LEFT, padx=2)
+
+        fr_tool = ttk.LabelFrame(
+            main_fr,
+            text="🛠文件工具：显示设置以及备份、还原全部文件的ads标签，位置是每个目录的ads_tags.txt",
+        )        
+
+        fr_tool.pack(fill=tk.X, pady=(8, 0))
+        ttk.Button(
+            fr_tool, text="↺重新识别文件参数", command=self.force_refresh_all_file
+        ).pack(side=tk.LEFT, padx=2)
+        ttk.Button(
+            fr_tool, text="🛠备份ADStoTXT", command=self.backup_all_folder_ads
         ).pack(side=tk.LEFT, padx=5)
         ttk.Button(
-            fr_tag, text="批量还原TXTtoADS", command=self.restore_all_folder_ads
+            fr_tool, text="🛠还原TXTtoADS", command=self.restore_all_folder_ads
         ).pack(side=tk.LEFT, padx=5)
         ttk.Button(
-            fr_tag, text="删除备份TXT", command=self.clear_backup_folder_ads
+            fr_tool, text="🛠删除备份TXT", command=self.clear_backup_folder_ads
         ).pack(side=tk.LEFT, padx=5)
 
     def load_data(self):
@@ -822,7 +943,7 @@ class MediaManagerApp:
     def __init__(self, root_win):
 
         self.root = root_win
-        self.root.title("媒体分类管理器 V2.1")
+        self.root.title(MEDIA_MANAGER_TITLE+MEDIA_MANAGER_VERSON)
         self.config_file = DEFAULT_CONFIG_NAME
         self.config_data = {}
         self.media_dict = {}
@@ -845,18 +966,27 @@ class MediaManagerApp:
         self.var_sort = tk.StringVar(value="默认顺序")
         self.build_main_ui()
         # 快捷键打分
-        self.root.bind("0", lambda e: self.set_file_score(0))
-        self.root.bind("1", lambda e: self.set_file_score(1))
-        self.root.bind("2", lambda e: self.set_file_score(2))
-        self.root.bind("3", lambda e: self.set_file_score(3))
-        self.root.bind("4", lambda e: self.set_file_score(4))
-        self.root.bind("5", lambda e: self.set_file_score(5))
-        self.root.bind("7", lambda e: self.prev_item())
-        self.root.bind("8", lambda e: self.next_item())
+        self.root.bind("<Key>", self.on_key_event)
+        self.hotkey_dict={}
         # 刷新标签、媒体文件
         self.rebuild_all_checkbox()
         self.refresh_tags_list()
         self.scan_media()  # 的确需要
+    def on_key_event(self,event):
+        focus_widget = self.root.focus_get()
+        widget_type = str(type(focus_widget))
+        if "Entry" in widget_type or "Text" in widget_type:
+            return
+        if event.keysym.isdigit():
+            num = int(event.keysym)
+            if num<6:self.set_file_score(num)
+        elif event.keysym=="Up":self.prev_item()
+        elif event.keysym=="Down":self.next_item()
+        elif event.keysym in self.hotkey_dict:
+            self.hotkey_dict[event.keysym]()
+        elif event.keysym=="BackSpace":self.clear_preset()
+        else:
+            print("key",event.keysym)
 
     def check_and_init_config(self):
         cfg_files = [f for f in os.listdir(".") if f.lower().endswith("config.ini")]
@@ -904,43 +1034,86 @@ class MediaManagerApp:
         self.setting_win = SettingUI(self.root, self)
 
     def open_edit_tag(self):
-        TagsManagerUI(self.root, self, "编辑分类标签", "EDIT")
-
+        TagsManagerUI(self.root, self, "编辑分类标签：按行区分，直接修改好退出即保存生效", "EDIT")
     def open_calc_tag(self):
         TagsManagerUI(self.root, self, "统计分类标签", "CALC")
-
     def open_about(self):
         AboutUI(self.root)
 
+    def switch_slim_mode(self):
+        if self.switch_slim_mode_flag.get():
+            self.pan.forget(self.left_fr)
+            self.pan.forget(self.right_fr)
+            self.pan.add(self.right_fr,weight=0)
+            self.root.attributes("-topmost", True)
+            self.root.attributes("-alpha", 0.8)
+            # 3. 恢复原始大小
+            self.root.state("normal")
+            self.root.after(50, lambda: self.root.geometry(
+                f"+{self.root.winfo_screenwidth() - self.root.winfo_width()}+0"
+            ))
+            
+        else:
+            self.pan.pack_forget()
+            self.pan.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            self.pan.forget(self.right_fr)
+            self.pan.add(self.left_fr,weight=1)
+            self.pan.add(self.right_fr,weight=0)
+            self.root.attributes("-topmost", False)
+            self.root.attributes("-alpha", 1)
+            self.root.state("zoomed")
+            self.root.geometry("+0+0")
+
+        # if self.slim_mode_flag:
+        #     for w in self.hide_list:
+        #         w.pack()
+        # else:
+        #     for w in self.hide_list:
+        #         w.pack_forget()
+
+        # for w in self.root.winfo_children():
+        #     if "hide" in w.winfo_name():
+        #         w.pack()  # 恢复显示
+
     def build_main_ui(self):
+        # 左右分割面板
+        pan = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        pan.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        left_fr = ttk.Frame(pan)
+        pan.add(left_fr, weight=1)
+        right_fr = ttk.Frame(pan, width=320)
+        
+        pan.add(right_fr, weight=0)
+        self.pan=pan
+        self.left_fr=left_fr
+        self.right_fr=right_fr
+
         # 顶部按钮行
-        top_fr = ttk.Frame(self.root)
-        top_fr.pack(fill=tk.X, padx=5, pady=5)
+        left_top_fr = ttk.Frame(left_fr)
+        left_top_fr.pack(fill=tk.X, padx=5, pady=5)
         btns = [
             ("⚙设置", self.open_setting),
-            ("𝒾 关于", self.open_about),
-            ("▦标签统计", self.open_calc_tag),
-            ("🖍标签编辑", self.open_edit_tag),
-            ("▤文件名标记", self.batch_rename_files),
-            ("↺标记还原", self.restore_original_name),
-            ("🗁打开目录", self.open_folder_by_sel),
+            # ("𝒾 关于", self.open_about),
+            # ("▦标签统计", self.open_calc_tag),
+            # ("🖍标签编辑", self.open_edit_tag),
+            ("📝文件名标记", self.batch_rename_files),
+            ("↩标记还原", self.restore_original_name),
+            ("↺刷新列表", self.refresh_file_list),
+            ("🛠扫描文件", self.scan_media),
+            # ("🗁打开目录", self.open_folder_by_sel),
             # ("🗑删除文件", self.delete_selected_file),
         ]
         for txt, cmd in btns:
-            ttk.Button(top_fr, text=txt, command=cmd).pack(side=tk.LEFT, padx=3)
-        ttk.Label(top_fr, text="文件名：").pack(side=tk.LEFT, padx=(10, 2))
-        self.rename_entry = ttk.Entry(top_fr, width=28)
-        self.rename_entry.pack(side=tk.LEFT, padx=2)
-        ttk.Button(top_fr, text="🖍执行改名", width=10, command=self.single_rename).pack(
-            side=tk.LEFT
-        )
-        ##        ttk.Button(top_fr,text="⚙设置",width=9,command=self.open_setting).pack(side=tk.LEFT)
-        ##        ttk.Button(top_fr,text="𝒾 关于",width=9,command=self.open_about).pack(side=tk.LEFT,padx=3)
+            ttk.Button(left_top_fr, text=txt, width=len(txt) * 2, command=cmd).pack(
+                side=tk.LEFT, padx=UI_MAIN_BT_PADX
+            )
 
         # 筛选+排序行
-        filter_fr = ttk.Frame(self.root)
+        filter_fr = ttk.Frame(left_fr)
         filter_fr.pack(fill=tk.X, padx=5, pady=3)
-        ttk.Label(filter_fr, text="筛选 关键字：").pack(side=tk.LEFT)
+
+
+        ttk.Label(filter_fr, text="▤筛选 文件名：").pack(side=tk.LEFT)
         e = ttk.Entry(filter_fr, textvariable=self.var_filter_name, width=12)
         e.pack(side=tk.LEFT, padx=2)
         e.bind("<KeyRelease>", lambda e: self.refresh_file_list())
@@ -977,13 +1150,13 @@ class MediaManagerApp:
         self.cb_type["values"] = ["全部", "视频", "音频", "图片", "压缩包", "其他文档"]
         self.cb_type.pack(side=tk.LEFT)
         self.cb_type.bind("<<ComboboxSelected>>", lambda e: self.refresh_file_list())
-        ttk.Button(filter_fr, text="清空筛选", command=self.clear_all_filter).pack(
+        ttk.Button(filter_fr, text="筛选重置", command=self.clear_all_filter).pack(
             side=tk.LEFT, padx=5
         )
         # 排序下拉
-        ttk.Label(filter_fr, text="排序：").pack(side=tk.LEFT, padx=(8, 2))
+        
         self.cb_sort = ttk.Combobox(
-            filter_fr, textvariable=self.var_sort, state="readonly", width=9
+            left_top_fr, textvariable=self.var_sort, state="readonly", width=9
         )
         self.cb_sort["values"] = [
             "默认顺序",
@@ -994,23 +1167,21 @@ class MediaManagerApp:
             "星级升序",
             "星级降序",
         ]
-        self.cb_sort.pack(side=tk.LEFT)
+        self.cb_sort.pack(side=tk.RIGHT)
         self.cb_sort.bind("<<ComboboxSelected>>", lambda e: self.refresh_file_list())
+        ttk.Label(left_top_fr, text="排序：").pack(side=tk.RIGHT, padx=(8, 2))
 
-        # 左右分割面板
-        pan = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        pan.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        left_fr = ttk.Frame(pan)
-        pan.add(left_fr, weight=4)
-        right_fr = ttk.Frame(pan, width=320)
-        pan.add(right_fr, weight=1)
+
+
+
+
         # 左侧列表+滚动条
         tree_wrap = ttk.Frame(left_fr)
         tree_wrap.pack(fill=tk.BOTH, expand=True)
         vsb = ttk.Scrollbar(tree_wrap, orient=tk.VERTICAL)
         self.file_tree = ttk.Treeview(
             tree_wrap,
-            columns=("path", "size", "reso", "defi", "score"),
+            columns=("path", "tags", "size", "reso", "defi", "score"),
             show="headings",
             selectmode="extended",
             yscrollcommand=vsb.set,
@@ -1018,39 +1189,53 @@ class MediaManagerApp:
         vsb.config(command=self.file_tree.yview)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
         self.file_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.file_tree.heading("path", text="文件路径")
-        self.file_tree.heading("size", text="文件大小(单击)")
+        self.file_tree.heading(
+            "path",
+            text="文件路径（双击路径打开所在文件夹，单击大小或双击右侧列打开文件| 按Ctrl多选文件进行批量操作）",
+        )
+        self.file_tree.heading("tags", text="标签")  # 新增标签
+        self.file_tree.heading("size", text="文件大小")
         self.file_tree.heading("reso", text="分辨率")
         self.file_tree.heading("defi", text="清晰度")
         self.file_tree.heading("score", text="星级")
         self.file_tree.column("path", width=420, stretch=tk.YES)
+        self.file_tree.column("tags", width=140, stretch=tk.NO)  # 新增标签
         self.file_tree.column("size", width=100, stretch=tk.NO)
         self.file_tree.column("reso", width=80, stretch=tk.NO)
         self.file_tree.column("defi", width=60, stretch=tk.NO)
         self.file_tree.column("score", width=60, stretch=tk.NO)
         self.file_tree.bind("<<TreeviewSelect>>", self.on_tree_select)
         self.file_tree.bind("<ButtonRelease-1>", self.click_size_open_file)
+        # self.file_tree.bind("<ButtonRelease-3>", self.click_tree_open_properties)
         self.file_tree.bind("<Double-1>", self.click_tree_open)
         # 右侧面板
         rp = 5
         rp_line = rp + 10
+        right_fr_switch= ttk.Frame(right_fr)
+        right_fr_switch.pack(fill=tk.X, padx=5, pady=5)
+        self.switch_auto_open_flag = tk.BooleanVar(value=True)
+        self.switch_slim_mode_flag = tk.BooleanVar(value=False)
+        self.switch_auto_score_next = tk.BooleanVar(value=False)
+        ttk.Checkbutton(right_fr_switch, text="精简模式", variable=self.switch_slim_mode_flag,command=self.switch_slim_mode).pack(side=tk.LEFT, padx=2)
+        ttk.Checkbutton(right_fr_switch, text="自动打开", variable=self.switch_auto_open_flag).pack(side=tk.LEFT, padx=2)
+
+        ttk.Button(right_fr_switch, text="𝒾 关于", width=5, command=self.open_about).pack(side=tk.LEFT, padx=2)
+        ttk.Separator(right_fr, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=rp_line, pady=(1, 1))  # 分割线
         fr_nav = ttk.Frame(right_fr)
         fr_nav.pack(pady=3, anchor="w")
-        ttk.Button(fr_nav, text="⬆上一个", width=8, command=self.prev_item).pack(
-            side=tk.LEFT, padx=2
-        )
-        ttk.Button(fr_nav, text="⬇下一个", width=8, command=self.next_item).pack(
-            side=tk.LEFT, padx=2
-        )
-        self.auto_open_flag = tk.BooleanVar(value=True)
-        ttk.Checkbutton(fr_nav, text="自动打开", variable=self.auto_open_flag).pack(
-            side=tk.LEFT, padx=2
-        )
+        ttk.Button(fr_nav, text="⬆上一个", width=8, command=self.prev_item).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_nav, text="⬇下一个", width=8, command=self.next_item).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_nav, text="🖍执行改名", width=10, command=self.single_rename).pack(side=tk.LEFT)
+        right_fr_name= ttk.Frame(right_fr)
+        right_fr_name.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(right_fr_name, text="文件名：").pack(side=tk.LEFT, padx=(10, 2))
+        self.rename_entry = ttk.Entry(right_fr_name, width=28)
+        self.rename_entry.pack(side=tk.LEFT, padx=(1, rp_line))
 
         ttk.Separator(right_fr, orient=tk.HORIZONTAL).pack(
             fill=tk.X, padx=rp_line, pady=(1, 1)
         )  # 分割线
-        ttk.Label(right_fr, text="★星级打分").pack(anchor=tk.W, padx=rp, pady=(1, 1))
+        ttk.Label(right_fr, text="★星级打分 (快捷键：0-5)").pack(anchor=tk.W, padx=rp, pady=(1, 1))
         score_fr = ttk.Frame(right_fr)
         score_fr.pack(padx=rp, pady=1, fill=tk.X)
         self.score_btn_list = []
@@ -1059,61 +1244,64 @@ class MediaManagerApp:
                 score_fr,
                 text="★",
                 width=3,
-                font=("宋体", 11),
+                font=ZEN_FONT_L,
                 fg="gray",
+                bg=ZEN_THEME["bg_main"],
                 command=lambda n=i + 1: self.set_file_score(n),
             )
-            b.pack(side=tk.LEFT, padx=2)
+            b.pack(side=tk.LEFT)
             self.score_btn_list.append(b)
-
-        lb_group = ttk.Label(right_fr, text="▤快捷分类组(左键应用/右键保存)")
+        ttk.Checkbutton(score_fr, text="自动下移", variable=self.switch_auto_score_next).pack(side=tk.LEFT, padx=2)
+        lb_group = ttk.Label(right_fr, text="▤批量分类组(左键应用/右键保存)")
         lb_group.pack(anchor=tk.W, padx=rp, pady=(1, 1))
         lb_group.bind("<Button-1>", self.show_all_presets)
         preset_fr = ttk.Frame(right_fr)
         preset_fr.pack(padx=rp, pady=2, fill=tk.X)
         for i in range(5):
-            btn = ttk.Button(preset_fr, text=str(i + 1), width=3)
+            btn = ttk.Button(preset_fr, text=str(i + 1), width=1)
             btn.bind("<Button-1>", lambda e, idx=i: self.apply_preset(idx))
             btn.bind("<Button-3>", lambda e, idx=i: self.save_preset(idx))
-            btn.pack(side=tk.LEFT, padx=2)
+            btn.pack(side=tk.LEFT)
         if True:
             btn = ttk.Button(preset_fr, text="清除", width=5, command=self.clear_preset)
-            btn.pack(side=tk.LEFT, padx=2)
+            btn.pack(side=tk.LEFT, padx=5)
         ttk.Separator(right_fr, orient=tk.HORIZONTAL).pack(
             fill=tk.X, padx=rp_line, pady=(1, 1)
         )  # 分割线
-        ttk.Label(right_fr, text="⊟内容分类（题材、特色等）").pack(
-            anchor=tk.W, padx=rp, pady=(1, 1)
-        )
+        lb_main=ttk.Label(right_fr, text="⊟内容标签（左键统计/右键编辑）")
+        lb_main.pack(anchor=tk.W, padx=rp, pady=(1, 1))
+        lb_main.bind("<Button-3>", lambda e =i: self.open_edit_tag())
+        lb_main.bind("<Button-1>", lambda e =i: self.refresh_tagm_check(True))
         self.tagm_inner = ttk.Frame(right_fr)
         self.tagm_inner.pack(padx=rp, pady=2, fill=tk.X)
         ttk.Separator(right_fr, orient=tk.HORIZONTAL).pack(
             fill=tk.X, padx=rp_line, pady=(1, 1)
         )  # 分割线
-        ttk.Label(right_fr, text="⊟附加分类（演员、作者、自定义等）").pack(
-            anchor=tk.W, padx=rp, pady=(1, 1)
-        )
+        lb_extra=ttk.Label(right_fr, text="⊟附加标签（左键统计/右键编辑）")
+        lb_extra.pack(anchor=tk.W, padx=rp, pady=(1, 1))
+        lb_extra.bind("<Button-3>", lambda e =i: self.open_edit_tag())
+        lb_extra.bind("<Button-1>", lambda e =i: self.refresh_tage_check(True))
         self.tage_inner = ttk.Frame(right_fr)
         self.tage_inner.pack(padx=rp, pady=2, fill=tk.X)
         ttk.Separator(right_fr, orient=tk.HORIZONTAL).pack(
             fill=tk.X, padx=rp_line, pady=(1,)
         )  # 分割线
-        lb_move = ttk.Label(right_fr, text="🗁快捷移动目录(左键应用/右键设置)")
+        lb_move = ttk.Label(right_fr, text="🗁批量移动目录(左键应用/右键设置)")
         lb_move.pack(anchor=tk.W, padx=rp, pady=(1, 1))
         lb_move.bind("<Button-1>", self.show_move_dir)
 
         move_fr = ttk.Frame(right_fr)
         move_fr.pack(padx=rp, pady=2, fill=tk.X)
         for i in range(5):
-            btn = ttk.Button(move_fr, text=str(i + 1), width=3)
+            btn = ttk.Button(move_fr, text=str(i + 1), width=1)
             btn.bind("<Button-1>", lambda e, idx=i: self.move_to_dir(idx))
             btn.bind("<Button-3>", lambda e, idx=i: self.set_move_dir(idx))
-            btn.pack(side=tk.LEFT, padx=2)
+            btn.pack(side=tk.LEFT)
         if True:
             btn = ttk.Button(
                 move_fr, text="🗑删除", width=6, command=self.delete_selected_file
             )
-            btn.pack(side=tk.LEFT, padx=2)
+            btn.pack(side=tk.LEFT, padx=4)
 
     # 上一个条目
     def prev_item(self):
@@ -1125,9 +1313,10 @@ class MediaManagerApp:
         if i > 0:
             self.file_tree.selection_set(lst[i - 1])
             self.file_tree.focus(lst[i - 1])
-        s = self.file_tree.selection()
-        if self.auto_open_flag.get():
-            os.startfile(self.file_tree.item(s[0], "values")[0])
+            if self.switch_auto_open_flag.get():
+                s = self.file_tree.selection()
+                os.startfile(self.file_tree.item(s[0], "values")[0])
+                if self.switch_slim_mode_flag.get():self.root.after(300, lambda: self.root.focus_force())
 
     # 下一个条目
     def next_item(self):
@@ -1140,9 +1329,10 @@ class MediaManagerApp:
             it = lst[i + 1]
             self.file_tree.selection_set(it)
             self.file_tree.focus(it)
-        s = self.file_tree.selection()
-        if self.auto_open_flag.get():
-            os.startfile(self.file_tree.item(s[0], "values")[0])
+            if self.switch_auto_open_flag.get():
+                s = self.file_tree.selection()
+                os.startfile(self.file_tree.item(s[0], "values")[0])
+                if self.switch_slim_mode_flag.get():self.root.after(300, lambda: self.root.focus_force())
 
     def refresh_tags_list(self):
         self.cb_tagm["values"] = ["全部", "未分类"] + self.config_data.get(
@@ -1156,7 +1346,12 @@ class MediaManagerApp:
         self.refresh_tagm_check()
         self.refresh_tage_check()
 
-    def refresh_tagm_check(self):
+    def refresh_tagm_check(self,tag_count=False):
+        if tag_count:
+            tag_counter = Counter()
+            for d in self.media_dict.values():
+                for t in d["tag_main"]:
+                    tag_counter[t] += 1
         if not self.tagm_inner.winfo_exists():
             return
         for w in self.tagm_inner.winfo_children():
@@ -1168,15 +1363,23 @@ class MediaManagerApp:
 
         col = math.ceil(len(ths) / rowcnt)
         idx = 0
+        hotkeys = ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "[", "]","F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
         for c in range(col):
             for r in range(rowcnt):
                 if idx >= len(ths):
                     break
                 n = ths[idx]
+                t=n
                 v = tk.BooleanVar()
+                if idx < len(hotkeys):
+                    t=t+":"+hotkeys[idx].upper()
+                    self.hotkey_dict[hotkeys[idx]] = lambda x=n, var=v: (var.set(not var.get()), self.toggle_tagm(x, var))
+                if tag_count:
+                    if tag_counter[n]:
+                        t=n+" "+str(tag_counter[n])
                 cb = ttk.Checkbutton(
                     self.tagm_inner,
-                    text=n,
+                    text=t,
                     variable=v,
                     command=lambda x=n, var=v: self.toggle_tagm(x, var),
                 )
@@ -1185,7 +1388,12 @@ class MediaManagerApp:
                 idx += 1
         self.tagm_inner.update_idletasks()
 
-    def refresh_tage_check(self):
+    def refresh_tage_check(self,tag_count=False):
+        if tag_count:
+            tag_counter = Counter()
+            for d in self.media_dict.values():
+                for t in d["tag_extra"]:
+                    tag_counter[t] += 1
         if not self.tage_inner.winfo_exists():
             return
         for w in self.tage_inner.winfo_children():
@@ -1194,7 +1402,7 @@ class MediaManagerApp:
         acs = self.config_data.get("tag_extra", [])
         rowcnt = self.config_data.get("tag_max_row", DEFAULT_MAX_ROW)
         import math
-
+        hotkeys = ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'","z", "x", "c", "v", "b", "n", "m", ",", ".", "/"]
         col = math.ceil(len(acs) / rowcnt)
         idx = 0
         for c in range(col):
@@ -1202,10 +1410,21 @@ class MediaManagerApp:
                 if idx >= len(acs):
                     break
                 n = acs[idx]
+                t=acs[idx]
+                if tag_count:
+                    if tag_counter[n]:
+                        t=n+" "+str(tag_counter[n])
+
                 v = tk.BooleanVar()
+                if idx < len(hotkeys):
+                    t=t+":"+hotkeys[idx].upper()
+                    self.hotkey_dict[hotkeys[idx]] = lambda x=n, var=v: (var.set(not var.get()), self.toggle_tage(x, var))
+                if tag_count:
+                    if tag_counter[n]:
+                        t=n+" "+str(tag_counter[n])
                 cb = ttk.Checkbutton(
                     self.tage_inner,
-                    text=n,
+                    text=t,
                     variable=v,
                     command=lambda x=n, var=v: self.toggle_tage(x, var),
                 )
@@ -1313,6 +1532,13 @@ class MediaManagerApp:
         old_extra = " | ".join(old.get("tag_extra", [])) or "空"
 
         # 超简洁确认
+        if new_main == "空" and new_extra == "空":
+            messagebox.showinfo(
+                "保存分组模板",
+                f"新分组：内容分类[{new_main}] 附加分类[{new_extra}]\n\n" f"请重新设置",
+            )
+            return
+
         if not messagebox.askyesno(
             "保存分组模板",
             f"模板{idx+1}\n"
@@ -1329,7 +1555,7 @@ class MediaManagerApp:
         self.save_config()
 
     def show_all_presets(self, e):
-        info = "📋 当前全部快捷分类组模板：\n\n"
+        info = "📋 当前全部快捷分类组模板：❎\n\n"
         for i in range(5):
             key = f"preset_{i+1}"
             preset = self.config_data.get(key, {})
@@ -1343,33 +1569,30 @@ class MediaManagerApp:
         if not sel:
             return
         cnt = len(sel)
-        if idx == "C":
-            ths = []
-            acs = []
-            msg = f"确定对【{cnt}个文件】清空全部分类标签并重置评分？"
-        else:
-            preset = self.config_data.get(f"preset_{idx+1}", {})
-            ths = preset.get("tag_main", [])
-            acs = preset.get("tag_extra", [])
-            if not ths and not acs:
-                messagebox.showwarning(
-                    "提示",
-                    f"当前快捷分类模板{idx+1}为空，请设置内容分类和附加分类后以右键点击按钮保存分类组",
-                )
-                return
-            main_str = " | ".join(ths) if ths else "无"
-            extra_str = " | ".join(acs) if acs else "无"
-            msg = f"确定要对【{cnt}个文件】批量设置标签吗？\n\n内容分类：{main_str}\n附加分类：{extra_str}"
-        if not messagebox.askyesno("确认操作", msg):
+
+        preset = self.config_data.get(f"preset_{idx+1}", {})
+        ths = preset.get("tag_main", [])
+        acs = preset.get("tag_extra", [])
+        if not ths and not acs:
+            messagebox.showwarning(
+                "提示",
+                f"当前快捷分类模板{idx+1}为空，请设置内容分类和附加分类后以右键点击按钮保存分类组",
+            )
             return
+        main_str = " | ".join(ths) if ths else "无"
+        extra_str = " | ".join(acs) if acs else "无"
+        msg = f"确定要对【{cnt}个文件】批量设置标签吗？\n\n内容分类：{main_str}\n附加分类：{extra_str}"
+
+        if cnt > 3:
+            if not messagebox.askyesno("确认操作", msg):
+                return
         for item in sel:
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
             info = self.media_dict[p]
             info["tag_main"] = ths.copy()
             info["tag_extra"] = acs.copy()
-            if idx == "C":
-                info["score"] = 0
             self.save_file_meta(p, info)
+            self.refresh_file_row(p, item)
         self.on_tree_select(None)
 
     def clear_preset(self):
@@ -1377,28 +1600,53 @@ class MediaManagerApp:
         if not sel:
             return
         cnt = len(sel)
-        msg = f"确定对【{cnt}个文件】清空全部分类标签并重置评分？"
-        if not messagebox.askyesno("确认操作", msg):
-            return
+        msg = f"确定对【{cnt}个文件】清空全部分类标签？"
+        if cnt > 3:
+            if not messagebox.askyesno("确认操作", msg):
+                return
         for item in sel:
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
             info = self.media_dict[p]
             info["tag_main"] = []
             info["tag_extra"] = []
-            info["score"] = 0
             self.save_file_meta(p, info)
+            self.refresh_file_row(p, item)
         self.on_tree_select(None)
+
+    def refresh_file_row(self, p, target_row=None):
+        info = self.media_dict[p]
+        mb = info["size"] / 1024 / 1024
+        star = "★" * info["score"]
+        values = (
+            p,
+            info["tag_main"] + info["tag_extra"],  # 新增标签
+            f"{mb:.2f} MB",
+            info["resolution"],
+            info["definition"],
+            star,
+        )
+        if target_row:
+            self.file_tree.item(target_row, values=values)
+        else:
+            return values
 
     def set_file_score(self, num):
         sel = self.file_tree.selection()
         if not sel:
             return
+        # 判断第一个当前评分是否和新评分一致，如是则新评分置0
+        p_tmp = os.path.normpath(self.file_tree.item(sel[0], "values")[0])
+        if self.media_dict[p_tmp]["score"] == num:
+            num = 0
         for item in sel:
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
             self.media_dict[p]["score"] = num
             self.save_file_meta(p, self.media_dict[p])
+            self.refresh_file_row(p, item)
+        if self.switch_auto_score_next.get():
+            self.next_item()
+
         self.on_tree_select(None)
-        self.refresh_file_list(self.current_select_path)
 
     def toggle_tagm(self, name, var):
         sel = self.file_tree.selection()
@@ -1414,9 +1662,9 @@ class MediaManagerApp:
             elif not stat and name in lst:
                 lst.remove(name)
             self.save_file_meta(p, self.media_dict[p])
-        # 切换分类不用刷新
+            # 切换分类刷新对应行
+            self.refresh_file_row(p, item)
 
-    ##        self.refresh_file_list(self.current_select_path)
     def toggle_tage(self, name, var):
         sel = self.file_tree.selection()
         if not sel:
@@ -1431,7 +1679,8 @@ class MediaManagerApp:
             elif not stat and name in lst:
                 lst.remove(name)
             self.save_file_meta(p, self.media_dict[p])
-        # 切换分类不用刷新
+            # 切换分类刷新对应行
+            self.refresh_file_row(p, item)
 
     ##        self.refresh_file_list(self.current_select_path)
 
@@ -1453,7 +1702,10 @@ class MediaManagerApp:
         self.rename_entry.delete(0, tk.END)
         self.rename_entry.insert(0, os.path.splitext(info["name"])[0])
         for i in range(5):
-            self.score_btn_list[i].config(fg="gold" if i < info["score"] else "gray")
+            self.score_btn_list[i].config(
+                fg="gold" if i < info["score"] else "gray", bg=ZEN_THEME["bg_main"]
+            )
+
         for t in info["tag_main"]:
             if t in self.tag_main_check_map:
                 self.tag_main_check_map[t].set(True)
@@ -1756,18 +2008,10 @@ class MediaManagerApp:
         ##        elif srt=="清晰度降序":tmp.sort(key=lambda x:x[1]["definition"],reverse=True)
         target = None
         for p, info in tmp:
-            mb = info["size"] / 1024 / 1024
-            star = "★" * info["score"]
             iid = self.file_tree.insert(
                 "",
                 "end",
-                values=(
-                    p,
-                    f"{mb:.2f} MB",
-                    info["resolution"],
-                    info["definition"],
-                    star,
-                ),
+                values=self.refresh_file_row(p),
             )
             if keep_path:
                 if os.path.normpath(p) == os.path.normpath(keep_path):
@@ -1792,21 +2036,40 @@ class MediaManagerApp:
 
     def click_size_open_file(self, e):
         col = self.file_tree.identify_column(e.x)
-        if col == "#2":
+        if col == "#3":
             sel = self.file_tree.selection()
             if sel:
                 p = os.path.normpath(self.file_tree.item(sel[0], "values")[0])
                 os.startfile(p)
+
+    def click_tree_open_properties(self, e):
+        sel = self.file_tree.selection()
+        if sel:
+            p = os.path.normpath(self.file_tree.item(sel[0], "values")[0])
+            if os.path.exists(p):
+
+                # 方法1不行
+                # os.startfile(p, operation="properties")
+                # 方法2也不行
+                # import ctypes
+                # ctypes.windll.shell32.ShellExecuteExW(None, "properties", p, None, None, 5)
+                # 方法3也不行
+                # subprocess.Popen(['cmd', '/c', 'start', '', p, '/properties'],shell=True)
+                pass
 
     def click_tree_open(self, e):
         col = self.file_tree.identify_column(e.x)
         sel = self.file_tree.selection()
         if sel:
             p = os.path.normpath(self.file_tree.item(sel[0], "values")[0])
-            if col == "#1" or col == "#2":
-                os.startfile(p)
+            if col == "#1":
+                try:
+                    subprocess.Popen(r'explorer.exe /select,"' + p + '"')
+                except:
+                    os.startfile(os.path.dirname(p))
+
             else:
-                os.startfile(os.path.dirname(p))
+                os.startfile(p)
 
     def open_folder_by_sel(self):
         sel = self.file_tree.selection()
@@ -1830,11 +2093,13 @@ class MediaManagerApp:
                     os.remove(ads)
                 if p in self.media_dict:
                     del self.media_dict[p]
+                self.file_tree.delete(item)
+                
             except Exception:
                 pass
         self.refresh_file_list()
 
-    # 【V2.1修订：改名成功自动选中新文件】
+    # 【V2.1.8修订：改名成功自动选中新文件】
     def single_rename(self):
         if not self.current_select_path or len(self.file_tree.selection()) != 1:
             messagebox.showwarning("提示", "请单选一个文件")
@@ -1847,11 +2112,11 @@ class MediaManagerApp:
         ext = os.path.splitext(old_p)[1]
         dir_p = os.path.dirname(old_p)
         new_full = os.path.normpath(os.path.join(dir_p, new_name + ext))
+        if new_full == self.current_select_path:
+            return
         idx = 1
         while os.path.exists(new_full):
-            new_full = os.path.normpath(
-                os.path.join(dir_p, f"{new_name}{idx:02d}{ext}")
-            )
+            new_full = os.path.normpath(os.path.join(dir_p, f"{new_name}{idx:02d}{ext}"))
             idx += 1
         try:
             os.rename(old_p, new_full)
@@ -1859,9 +2124,16 @@ class MediaManagerApp:
             ads_new = new_full + ADS_SUFFIX
             if os.path.exists(ads_old):
                 os.rename(ads_old, ads_new)
-            self.media_dict[new_full] = self.media_dict.pop(old_p)
-            # 刷新并选中新路径
-            self.refresh_file_list(new_full)
+            info=self.media_dict.pop(old_p)
+            info["name"]=os.path.basename(new_full)
+            self.media_dict[new_full] = info
+            # 刷新并选中
+            self.refresh_file_row(new_full, self.file_tree.selection()[0])
+            self.current_select_path = new_full
+            self.rename_entry.delete(0, tk.END)
+            self.rename_entry.insert(0, os.path.splitext(info["name"])[0])
+            
+
         except Exception as e:
             messagebox.showerror("改名失败", str(e))
 
@@ -1951,6 +2223,7 @@ class MediaManagerApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    font_size_adjust(1)
+    cycle_color()
     app = MediaManagerApp(root)
-    # cycle_theme()
     root.mainloop()
