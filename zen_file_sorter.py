@@ -1,9 +1,9 @@
-import os, shutil, time, subprocess
+import os, shutil, time, subprocess,ctypes
 from collections import Counter
 import json, re
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, simpledialog
-
+from tkinter import ttk, filedialog, simpledialog
+from datetime import datetime
 
 try:
     from pymediainfo import MediaInfo
@@ -27,43 +27,73 @@ OTHER_DEFAULT_SUFFIX = ".doc;.docx;.pdf;.txt;.xls;.xlsx"
 ADS_SUFFIX = ":zen_mv_data"
 DEFAULT_MAX_ROW = 10
 UI_MAIN_BT_PADX = 1
-DEFAULT_TAG_MAIN = ["动作", "喜剧", "爱情", "悬疑","动画", "舞蹈"]
-DEFAULT_TAG_EXTRA = ["大陆", "大陆", "港台", "日韩", "欧美"]
+DEFAULT_TAG_MAIN = [
+    # 视频影视类
+    "动作", "喜剧", "爱情", "悬疑", "动画", "舞蹈", "科幻", "恐怖",
+    # 图片图像类
+    "风景", "人像", "壁纸", "原画", "写真",
+    # 音频音效类
+    "配乐", "音效","人声", "纯音", "伴奏",
+    # 文档文稿类
+    "教程", "素材", "报告", "小说",
+]
+DEFAULT_TAG_EXTRA = ["国产", "港台", "日韩", "欧美","学习","聚会","工作","旅行","抖音","下载","自制","收藏", "分享","存档"]
+
+
 
 # =====================版本信息备忘【锁定】=====================
 MEDIA_MANAGER_TITLE = "媒体文件分类管理工具"
-MEDIA_MANAGER_VERSON = "v2.1.9"
+MEDIA_MANAGER_VERSON = "v2.2.0"
 MEDIA_MANAGER_AUTHOR = "zen(lhywbe@mail.com)&doubao"
 MEDIA_MANAGER_LOG = """
-v2.1.9 
-1、UI优化，自制主题、配色、字体、切换模块
-2、增加精简模式，仅显示打分标签功能界面，并置顶透明显示
-3、优化标签统计、功能， 直接在右键点击窗口编辑，标签应用增加快捷键
-4、优化多个模块
+TODO:
+1、增加清单导出功能
+2、优化文档，研究打包更小的exe
+3、增加linux的适配
+4、增加http服务器，提供远程html查看列表和局域网远程播放功能
+5、
 
-v2.1.8
-1、优化UI，尝试切换CustomTkiter,难以优化已回滚
-2、优化性能，进一步优化磁盘I/O批量读取功能的模块，尽量优化改为纯内存处理，仅读取变动项目
-2、增加置顶小窗口实现快速打分
+V2.2 实用版本:完善快捷键、单手操作、文件防护细节，版本完整可用，在使用中修复bug和优化功能
+1.重新划分快捷键：F键+数字键控制主标签，字母键控制附加标签，按键分工更清晰（v2.2.0）
+2.适配单手键盘操作：上下键切换文件、±键打分、回车键打开文件；精简界面下左右键可控制播放器进退（v2.2.0）
+3.支持根据白天黑夜自动切换深浅色模式；自制弹窗提示框，解决原生弹窗不兼容深色模式的问题（v2.2.0）
+4.自动清除文件只读属性，避免文件权限问题导致无法修改标签（v2.2.0）
+5.新增文件锁定标签，锁定后的文件无法修改评分和分类，防止误操作改（v2.2.0）
 
-v2.1.7 
-1、扫描目录的增加生效、禁用切换功能
-2、优化布局、控件排版、文本，修复bug
-3、整体代码优化、格式化
 
-v2.1.6 基本稳定版本
-1、修复多处BUG，提升整体运行稳定性
-2、优化全局UI布局，统一所有控件排版、尺寸与字体样式
-3、新增浅色/深色模式切换，支持日夜界面切换
+V2.1 功能迭代版本：优化操作方式，增加快捷操作、小窗口、自定义界面等便捷功能。
+1.增加5组快捷标签、5组快捷移动文件夹功能，操作前增加二次确认；所有功能都支持单个文件和批量文件处理（v2.1.0）
+2.支持标签数据导出、备份和恢复，方便跨硬盘、跨电脑迁移标签数据（v2.1.0）
+3.主界面直接增加文件重命名框和按钮，方便操作（v2.1.1）
+4.统计标签使用次数，可以检测无效和游离标签（v2.1.2）
+5.支持按清晰度、评分、分类组合筛选文件，新增全局快捷键操作（v2.1.3）
+6.添加上一个/下一个素材切换按钮，可设置切换后自动打开文件，适合单手批量处理文件（v2.1.5）
+7.支持手动切换浅色、深色两种显示模式（v2.1.6）
+8.可以单独开启或关闭某一个扫描文件夹，不用删除目录（v2.1.7）
+9.增加精简模式，小窗口置顶浮在播放器上面，快速切换、打分（v2.1.8）
+10.支持自定义软件字体、配色；新增极简置顶透明小界面；右键文件可直接修改标签（v2.1.9）
+
+V2.0 重构版本：重写软件底层代码，优化运行速度，代码量接近900行，复杂度上升，豆包无法满足细节的需要，经常遗漏或回滚，转为人工编码。
+1.把大部分文件数据加载到内存运行，减少频繁读取硬盘，提升软件运行速度（v2.0.0）
+2.重新设计软件主界面，支持保存自己的界面配置，一键切换配置（v2.0.0）
+3.支持多套配置快速切换，可分别管理不同的素材文件夹和标签分组（v2.0.0）
+
+V1.0 初代版本：完成软件基础功能开发，实现素材管理、标签分类、多格式文件支持，编码部分基本都是用豆包来做的。
+1.完成软件基础框架开发，支持主流视频识别，可添加素材目录、手动刷新文件列表，自带题材、演员、评分、备注四类标签（v1.0.0）
+2.改用NTFS-ADS数据流保存标签，不改动原文件，同时增加多条件文件筛选功能（v1.1.0）
+3.支持按评分、标签批量修改文件名，也可以一键恢复文件原始名称（v1.2.0）
+4.增加标签使用统计面板，支持直接编辑标签，主界面布局可以自由调整（v1.3.0）
+5.软件不再只支持视频，新增图片、音频、压缩包、文档等文件支持；可批量添加和删除扫描文件夹（v1.4.0）
+6.修改标签格式，分为主标签和附加标签，旧版本所有标签数据可以直接迁移使用（v1.5.0）
+7.新增独立设置页面，统一存放软件所有配置项（v1.6.0）
+
 """
 MEDIA_MANAGER_INFO = """
-本工具是面向本地音视频、图集和各类文件素材的轻量化管理工具，实现更方便归类、整理、打分、转移。为实现轻量化和边界转移，依托 NTFS-ADS 备用数据流做标签存储。
-核心功能
-1、自动遍历自定义本地目录，区分视频 / 音频 / 图片 / 压缩包 / 自定义文档，调用 MediaInfo、Pillow 自动读取视频图片分辨率进行记录。
-2、多维度标签与星级管理：自定义分容分类、附属附加标签库，五星评分标记资源；支持单选 / 批量修改标签、星级，数据持久化存入 ADS 或附属标签文件。
-4、复合条件筛选检索：关键词 + 文件类型 + 清晰度 + 星级 + 内容分类 + 附加分类六维联动筛选，精准过滤目标素材。
-5、批量命名 ：一键批量将【星级 + 内容 + 附加】拼接为文件名后缀；随时一键逆向剔除标签后缀，还原文件初始名称，方便结合文件管理器搜索转移。
-6、标签统计盘点：自动统计在用标签频次，区分系统标准标签、游离无效标签，快速清理不规范标签，统一资源库分类规范。
+1、zen-file-sorter 是一款轻量化本地媒体文件分类管理工具，能方便完成文件筛选、素材归类、星级打分、批量整理、文件转移等日常整理工作。
+2、该小工具无联网、无捆绑、无后台，同时搭配单手操作、全局快捷键、置顶小窗口等快捷操作。
+3、设计初衷：换手机剩下的大量视频照片、微信文件、抖音无水印短视频以及多年下载的电影，在电脑里散乱无分类需要整理，没找到合适的软件，所以花了点时间自制了这个工具。依托NTFS分区自带的ADS备用数据流储存全部标签与评分数据，标签信息直接挂载在文件本体上，不会生成额外的配置文件，同时也不会修改文件内容和改动文件原始修改时间，最大程度保留原文件原始状态。
+4、项目完全开源免费，欢迎大家点Star收藏，提交Issue反馈问题、提交PR参与代码共建：https://github.com/lhyweb/zen-file-sorter 。
+5、使用过程中遇到bug或有功能建议，请加入QQ群：463960874交流。
 """
 # =====================全局函数【锁定】=====================
 # 清晰度：取画面短边判定，横竖屏通用【V2.1修订】
@@ -130,6 +160,8 @@ def cycle_theme():
 
 
 def font_size_adjust(step=0,mode="ALL"):
+    if max(ZEN_FONT_S[1], ZEN_FONT[1],ZEN_FONT_S[1])>15 and step>0:return
+    if min(ZEN_FONT_S[1], ZEN_FONT[1],ZEN_FONT_S[1])<7 and step<0:return
     if mode=="BOTH":
         ZEN_FONT_S[1]+= step
         ZEN_FONT[1]+= step
@@ -137,6 +169,10 @@ def font_size_adjust(step=0,mode="ALL"):
         ZEN_FONT_S[1]+= step
         ZEN_FONT[1]+= step
         ZEN_FONT_L[1]+= step
+    elif mode=="RESET":
+        ZEN_FONT_S[1] = 10
+        ZEN_FONT[1] = 11
+        ZEN_FONT_L[1] = 12
     elif mode=="A":
         ZEN_FONT[1]+= step
     elif mode=="T":
@@ -395,6 +431,34 @@ def cycle_color():
     # 切换主题后自动刷新
     refresh_widgets()
     font_size_adjust()
+    
+
+
+def set_win_title_color(win):
+
+    DWMWA_CAPTION_COLOR = 35
+    DWMWA_TEXT_COLOR = 36
+
+    # 十六进制 #RRGGBB 转 Windows BGR 整型
+    def hex2bgr(hex_color):
+        h = hex_color.lstrip("#")
+        r = int(h[0:2], 16)
+        g = int(h[2:4], 16)
+        b = int(h[4:6], 16)
+        return b | (g << 8) | (r << 16)
+
+    hwnd = ctypes.windll.user32.GetParent(win.winfo_id())
+    # 标题栏背景
+    ctypes.windll.dwmapi.DwmSetWindowAttribute(
+        hwnd, DWMWA_CAPTION_COLOR,
+        ctypes.byref(ctypes.c_int(hex2bgr(ZEN_THEME["bg_main"]))), 4
+    )
+    # 标题文字
+    ctypes.windll.dwmapi.DwmSetWindowAttribute(
+        hwnd, DWMWA_TEXT_COLOR,
+        ctypes.byref(ctypes.c_int(hex2bgr(ZEN_THEME["fg_main"]))), 4
+    )
+
 
 
 # ===================== 自定义主题弹窗 =====================
@@ -434,6 +498,97 @@ def zen_toast(root, msg, duration=15000):
     toast.geometry(f"+{x}+{y}")
     toast.after(duration, close_toast)
 
+def zen_msgbox(title,text):
+    win=_zen_msg_pre(title)
+    # 文本标签，自动换行、自适应宽高
+    lab = ttk.Label(win,text=text,foreground=ZEN_THEME["fg_main"],font=ZEN_FONT,wraplength=350)
+    lab.pack(padx=25, pady=20)
+    # 按钮
+    ttk.Button(win, text="确定", command=win.destroy).pack(pady=(0, 18))
+    win.bind("<Return>", lambda e: win.destroy())
+    win.bind("<Escape>", lambda e: win.destroy())
+    _zen_msg_after(win)
+
+
+def _zen_msg_pre(title):
+    win = tk.Toplevel(root)
+    win.title(title)
+    win.configure(bg=ZEN_THEME["bg_main"])
+    win.transient(root)
+    win.grab_set()
+    return win
+def _zen_msg_after(win):
+    # win.geometry("")
+    # win.resizable(False, False)
+
+    win.update_idletasks()
+    # 窗口自身宽、高
+    w = win.winfo_width()
+    h = win.winfo_height()
+    # 屏幕宽、高
+    screen_w = win.winfo_screenwidth()
+    screen_h = win.winfo_screenheight()
+    x = (screen_w - w) // 2
+    y = (screen_h - h) // 2
+    win.geometry(f"{w}x{h}+{x}+{y}")
+
+
+    win.focus()
+    root.wait_window(win)
+def zen_askyesno(title, text):
+    """是/否 确认框，返回 True(是) / False(否)"""
+    win = _zen_msg_pre(title)
+    result = [False]
+    lab = ttk.Label(win, text=text, foreground=ZEN_THEME["fg_main"], font=ZEN_FONT, wraplength=350)
+    lab.pack(padx=25, pady=20)
+    # 按钮容器
+    btn_frame = ttk.Frame(win)
+    btn_frame.pack(pady=(0, 18))
+    def on_yes():
+        result[0] = True
+        win.destroy()
+    def on_no():
+        result[0] = False
+        win.destroy()
+    # 是、否按钮
+    ttk.Button(btn_frame, text="是", command=on_yes).grid(row=0, column=0, padx=15)
+    ttk.Button(btn_frame, text="否", command=on_no).grid(row=0, column=1, padx=15)
+    # 回车默认触发「是」
+    win.bind("<Return>", lambda e: on_yes())
+    win.bind("<Escape>", lambda e: on_no())
+    win.focus_force()
+    # 自适应大小、禁止缩放
+    _zen_msg_after(win)
+    return result[0]
+def zen_askstring(title, prompt, default=""):
+    win = _zen_msg_pre(title)
+    # 存储结果
+    result = [None]
+    # 提示文本
+    lab = ttk.Label(win, text=prompt, foreground=ZEN_THEME["fg_main"], font=ZEN_FONT, wraplength=350)
+    lab.pack(padx=25, pady=(20, 10))
+    # 输入框
+    entry_var = tk.StringVar(value=default)
+    entry = ttk.Entry(win, textvariable=entry_var, font=ZEN_FONT)
+    entry.pack(fill="x", padx=25)
+    # 按钮容器
+    btn_frame = ttk.Frame(win)
+    btn_frame.pack(pady=(15, 18))
+    def on_ok():
+        result[0] = entry_var.get()
+        win.destroy()
+    def on_cancel():
+        result[0] = None
+        win.destroy()
+    ttk.Button(btn_frame, text="确定", command=on_ok).grid(row=0, column=0, padx=15)
+    ttk.Button(btn_frame, text="取消", command=on_cancel).grid(row=0, column=1, padx=15)
+    # 快捷键：回车确认，ESC取消
+    win.bind("<Return>", lambda e: on_ok())
+    win.bind("<Escape>", lambda e: on_cancel())
+    # 输入框优先聚焦
+    entry.focus()
+    _zen_msg_after(win)
+    return result[0]
 
 # =====================弹窗类【锁定】=====================
 
@@ -575,10 +730,10 @@ class SettingUI(tk.Toplevel):
             "• 视频、图片将通过 pymediainfo、Pillow 重新解析分辨率、EXIF、拍摄参数等元数据并更新\n"
             "• 文件数量较多时耗时较久，请耐心等待完成提示，请勿中途关闭程序\n"
         )
-        if not messagebox.askyesno("确认操作", msg):
+        if not zen_askyesno("确认操作", msg):
             return  # 点取消就直接退出
         count_total, count_dict = self.app.scan_media(force_gen=True)
-        messagebox.showinfo(
+        zen_msgbox(
             "操作完成",
             f"文件扫描与数据刷新已执行完毕！\n\n"
             f"本次扫描总文件数：{count_total} 个\n"
@@ -601,6 +756,7 @@ class SettingUI(tk.Toplevel):
         ttk.Button(fr_cfg, text="A-", command=lambda: font_size_adjust(-1,"A"), width=3).pack(side=tk.LEFT, padx=2)
         ttk.Button(fr_cfg, text="T+", command=lambda: font_size_adjust(1,"T"), width=3).pack(side=tk.LEFT, padx=2)
         ttk.Button(fr_cfg, text="T-", command=lambda: font_size_adjust(-1,"T"), width=3).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_cfg, text="RST", command=lambda: font_size_adjust(0,"RESET"), width=3).pack(side=tk.LEFT, padx=2)
 
 
         fr_dir = ttk.LabelFrame(main_fr, text="🗁扫描目录")
@@ -764,7 +920,7 @@ class SettingUI(tk.Toplevel):
         self.app.scan_media()  # 的确需要
 
     def backup_all_folder_ads(self):
-        all_folders = self.app.config_data.get("folders", [])
+        all_folders = [k for k, v in self.app.config_data.get("folders", {}).items() if v is True]
         total = 0
         for top_fd in all_folders:
             if not os.path.isdir(top_fd):
@@ -783,20 +939,20 @@ class SettingUI(tk.Toplevel):
                         meta["tag_extra"] = meta.pop("tag_ext")
                     save_dic[fn] = meta
                 if save_dic:
-                    out_txt = os.path.join(root, "ads_tags.txt")
+                    out_txt = os.path.join(root, "_ads_tags.txt")
                     with open(out_txt, "w", encoding="utf-8") as f:
                         json.dump(save_dic, f, ensure_ascii=False, indent=2)
                     total += 1
-        messagebox.showinfo("备份完成", f"共生成{total}个ads_tags.txt")
+        zen_msgbox("备份完成", f"共生成{total}个ads_tags.txt")
 
     def restore_all_folder_ads(self):
-        all_folders = self.app.config_data.get("folders", [])
+        all_folders = [k for k, v in self.app.config_data.get("folders", {}).items() if v is True]
         total = 0
         for top_fd in all_folders:
             if not os.path.isdir(top_fd):
                 continue
             for root, _, files in os.walk(top_fd):
-                txt_path = os.path.join(root, "ads_tags.txt")
+                txt_path = os.path.join(root, "_ads_tags.txt")
                 if not os.path.exists(txt_path):
                     continue
                 try:
@@ -811,20 +967,20 @@ class SettingUI(tk.Toplevel):
                 total += 1
         self.app.scan_media()  # 的确需要
         self.app.refresh_file_list()
-        messagebox.showinfo("还原完成", f"共读取{total}个目录备份")
+        zen_msgbox("还原完成", f"共读取{total}个目录备份")
 
     def clear_backup_folder_ads(self):
-        all_folders = self.app.config_data.get("folders", [])
+        all_folders = [k for k, v in self.app.config_data.get("folders", {}).items() if v is True]
         total = 0
         for top_fd in all_folders:
             if not os.path.isdir(top_fd):
                 continue
             for root, _, files in os.walk(top_fd):
-                txt_path = os.path.join(root, "ads_tags.txt")
+                txt_path = os.path.join(root, "_ads_tags.txt")
                 if os.path.exists(txt_path):
                     os.remove(txt_path)
                     total += 1
-        messagebox.showinfo("清除完成", f"共清除{total}个ads_tags.txt备份")
+        zen_msgbox("清除完成", f"共清除{total}个ads_tags.txt备份")
 
 
 class ConfigSelectUI(tk.Toplevel):
@@ -832,12 +988,13 @@ class ConfigSelectUI(tk.Toplevel):
         super().__init__(master=master_root)
         self.root, self.app = master_root, app_obj
         self.title("选择配置文件")
-        self.geometry("360x300")
+        # self.geometry("360x300")
+        self.resizable(False, False)
         self.resizable(0, 0)
         self.transient(self.root)
         self.grab_set()
-
         self.lb = tk.Listbox(self)
+        cycle_color.apply_listbox(self.lb)
         self.lb.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         self.lb.bind("<Double-1>", self.on_double_click)  # 新增：双击绑定
 
@@ -869,7 +1026,7 @@ class ConfigSelectUI(tk.Toplevel):
     def _get_select(self):
         sel = self.lb.curselection()
         if not sel:
-            messagebox.showwarning("提示", "请先选中配置文件")
+            zen_msgbox("提示", "请先选中配置文件")
             return None
         return self.lb.get(sel[0])
 
@@ -877,12 +1034,12 @@ class ConfigSelectUI(tk.Toplevel):
         self.select_cfg()
 
     def create_new_cfg(self):
-        name = simpledialog.askstring("新建配置", "输入配置名称：")
+        name = zen_askstring("新建配置", "输入配置名称：")
         if not name:
             return
         path = f"{name}_config.ini"
         if os.path.exists(path):
-            messagebox.showwarning("提示", "配置已存在")
+            zen_msgbox("提示", "配置已存在")
             return
         self.app.create_default_config(path)
         self.refresh_list()
@@ -891,12 +1048,12 @@ class ConfigSelectUI(tk.Toplevel):
         src = self._get_select()
         if not src:
             return
-        new_name = simpledialog.askstring("复制配置", "新配置名称：")
+        new_name = zen_askstring("复制配置", "新配置名称：")
         if not new_name:
             return
         dst = f"{new_name}_config.ini"
         if os.path.exists(dst):
-            messagebox.showwarning("提示", "目标配置已存在")
+            zen_msgbox("提示", "目标配置已存在")
             return
         shutil.copy2(src, dst)
         self.refresh_list()
@@ -905,12 +1062,12 @@ class ConfigSelectUI(tk.Toplevel):
         old = self._get_select()
         if not old:
             return
-        new_name = simpledialog.askstring("重命名配置", "输入新名称：")
+        new_name = zen_askstring("重命名配置", "输入新名称：")
         if not new_name:
             return
         new = f"{new_name}_config.ini"
         if new == old or os.path.exists(new):
-            messagebox.showwarning("提示", "名称重复或无修改")
+            zen_msgbox("提示", "名称重复或无修改")
             return
         os.rename(old, new)
         self.refresh_list()
@@ -919,7 +1076,7 @@ class ConfigSelectUI(tk.Toplevel):
         cfg = self._get_select()
         if not cfg:
             return
-        if messagebox.askyesno("删除确认", f"确定删除 {cfg} ?"):
+        if zen_askyesno("删除确认", f"确定删除 {cfg} ?"):
             os.remove(cfg)
             self.refresh_list()
 
@@ -972,19 +1129,64 @@ class MediaManagerApp:
         self.rebuild_all_checkbox()
         self.refresh_tags_list()
         self.scan_media()  # 的确需要
+
+
+
+    def control_player_seek(self, go_forward: bool = True, count: int = 2):
+        if not self.switch_slim_mode_flag.get():
+            return
+        user32 = ctypes.windll.user32
+        VK_ALT = 0x12
+        VK_ESC = 0x1B
+        VK_RIGHT = 0x27
+        VK_LEFT = 0x25
+        KEY_DOWN = 0x0000
+        KEY_UP = 0x0002
+
+        target_key = VK_RIGHT if go_forward else VK_LEFT
+
+        user32.keybd_event(VK_ALT, 0, KEY_DOWN, 0)
+        time.sleep(0.06)
+        user32.keybd_event(VK_ESC, 0, KEY_DOWN, 0)
+        time.sleep(0.08)
+        user32.keybd_event(VK_ESC, 0, KEY_UP, 0)
+        time.sleep(0.06)
+        user32.keybd_event(VK_ALT, 0, KEY_UP, 0)
+        time.sleep(0.15)
+
+        # 单键步进5秒，计算按压次数
+        for _ in range(count):
+            user32.keybd_event(target_key, 0, KEY_DOWN, 0)
+            time.sleep(0.02)
+            user32.keybd_event(target_key, 0, KEY_UP, 0)
+            time.sleep(0.02)
+
+        self.root.focus_force()
+    def startfile(self):
+        sel = self.file_tree.selection()
+        if sel:
+            p = os.path.normpath(self.file_tree.item(sel[0], "values")[0])
+            os.startfile(p)
+
     def on_key_event(self,event):
         focus_widget = self.root.focus_get()
         widget_type = str(type(focus_widget))
         if "Entry" in widget_type or "Text" in widget_type:
+            if focus_widget is self.rename_entry:
+                if event.keysym=="Return":
+                    self.single_rename()
             return
-        if event.keysym.isdigit():
-            num = int(event.keysym)
-            if num<6:self.set_file_score(num)
-        elif event.keysym=="Up":self.prev_item()
-        elif event.keysym=="Down":self.next_item()
-        elif event.keysym in self.hotkey_dict:
-            self.hotkey_dict[event.keysym]()
+        if event.keysym=="Up":self.nav_item(-1)
+        elif event.keysym=="Down":self.nav_item(1)
+        elif event.keysym=="minus":self.set_file_score_setp(-1)
+        elif event.keysym=="plus":self.set_file_score_setp(1)
+        elif event.keysym in self.hotkey_dict:self.hotkey_dict[event.keysym]()
         elif event.keysym=="BackSpace":self.clear_preset()
+        elif event.keysym=="Delete":self.delete_selected_file()
+        elif event.keysym=="Right":self.control_player_seek(True,1)
+        elif event.keysym=="Left":self.control_player_seek(False)
+        elif event.keysym=="Return":self.startfile()
+        elif event.keysym=="Alt_L":pass
         else:
             print("key",event.keysym)
 
@@ -1042,6 +1244,7 @@ class MediaManagerApp:
 
     def switch_slim_mode(self):
         if self.switch_slim_mode_flag.get():
+            self.switch_auto_open_flag.set(True)
             self.pan.forget(self.left_fr)
             self.pan.forget(self.right_fr)
             self.pan.add(self.right_fr,weight=0)
@@ -1075,6 +1278,27 @@ class MediaManagerApp:
         #     if "hide" in w.winfo_name():
         #         w.pack()  # 恢复显示
 
+    # 1. 全选
+    def file_select_all(self):
+        items = self.file_tree.get_children()
+        self.file_tree.selection_set(items)
+    # 3. 反选
+    def file_invert_select(self):
+        tree = self.file_tree
+        all_items = tree.get_children()
+        selected = set(tree.selection())
+        
+        to_select = []
+        to_deselect = []
+        
+        for item in all_items:
+            if item in selected:
+                to_deselect.append(item)
+            else:
+                to_select.append(item)
+        tree.selection_remove(to_deselect)
+        tree.selection_set(to_select)
+
     def build_main_ui(self):
         # 左右分割面板
         pan = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
@@ -1098,6 +1322,8 @@ class MediaManagerApp:
             # ("🖍标签编辑", self.open_edit_tag),
             ("📝文件名标记", self.batch_rename_files),
             ("↩标记还原", self.restore_original_name),
+            ("全选", self.file_select_all),
+            ("反选", self.file_invert_select),
             ("↺刷新列表", self.refresh_file_list),
             ("🛠扫描文件", self.scan_media),
             # ("🗁打开目录", self.open_folder_by_sel),
@@ -1201,7 +1427,7 @@ class MediaManagerApp:
         self.file_tree.column("path", width=420, stretch=tk.YES)
         self.file_tree.column("tags", width=140, stretch=tk.NO)  # 新增标签
         self.file_tree.column("size", width=100, stretch=tk.NO)
-        self.file_tree.column("reso", width=80, stretch=tk.NO)
+        self.file_tree.column("reso", width=90, stretch=tk.NO)
         self.file_tree.column("defi", width=60, stretch=tk.NO)
         self.file_tree.column("score", width=60, stretch=tk.NO)
         self.file_tree.bind("<<TreeviewSelect>>", self.on_tree_select)
@@ -1213,7 +1439,7 @@ class MediaManagerApp:
         rp_line = rp + 10
         right_fr_switch= ttk.Frame(right_fr)
         right_fr_switch.pack(fill=tk.X, padx=5, pady=5)
-        self.switch_auto_open_flag = tk.BooleanVar(value=True)
+        self.switch_auto_open_flag = tk.BooleanVar(value=False)
         self.switch_slim_mode_flag = tk.BooleanVar(value=False)
         self.switch_auto_score_next = tk.BooleanVar(value=False)
         ttk.Checkbutton(right_fr_switch, text="精简模式", variable=self.switch_slim_mode_flag,command=self.switch_slim_mode).pack(side=tk.LEFT, padx=2)
@@ -1223,8 +1449,8 @@ class MediaManagerApp:
         ttk.Separator(right_fr, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=rp_line, pady=(1, 1))  # 分割线
         fr_nav = ttk.Frame(right_fr)
         fr_nav.pack(pady=3, anchor="w")
-        ttk.Button(fr_nav, text="⬆上一个", width=8, command=self.prev_item).pack(side=tk.LEFT, padx=2)
-        ttk.Button(fr_nav, text="⬇下一个", width=8, command=self.next_item).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_nav, text="⬆上一个", width=8, command=lambda:self.nav_item(-1)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_nav, text="⬇下一个", width=8, command=lambda:self.nav_item(-1)).pack(side=tk.LEFT, padx=2)
         ttk.Button(fr_nav, text="🖍执行改名", width=10, command=self.single_rename).pack(side=tk.LEFT)
         right_fr_name= ttk.Frame(right_fr)
         right_fr_name.pack(fill=tk.X, padx=5, pady=5)
@@ -1235,7 +1461,7 @@ class MediaManagerApp:
         ttk.Separator(right_fr, orient=tk.HORIZONTAL).pack(
             fill=tk.X, padx=rp_line, pady=(1, 1)
         )  # 分割线
-        ttk.Label(right_fr, text="★星级打分 (快捷键：0-5)").pack(anchor=tk.W, padx=rp, pady=(1, 1))
+        ttk.Label(right_fr, text="★星级打分 (快捷键⬅➡)").pack(anchor=tk.W, padx=rp, pady=(1, 1))
         score_fr = ttk.Frame(right_fr)
         score_fr.pack(padx=rp, pady=1, fill=tk.X)
         self.score_btn_list = []
@@ -1251,7 +1477,9 @@ class MediaManagerApp:
             )
             b.pack(side=tk.LEFT)
             self.score_btn_list.append(b)
-        ttk.Checkbutton(score_fr, text="自动下移", variable=self.switch_auto_score_next).pack(side=tk.LEFT, padx=2)
+        # ttk.Checkbutton(score_fr, text="自动下移", variable=self.switch_auto_score_next).pack(side=tk.LEFT, padx=2)
+        self.switch_file_locked_flag= tk.BooleanVar(value=False)
+        ttk.Checkbutton(score_fr, text="锁定", variable=self.switch_file_locked_flag,command=self.switch_file_locked).pack(side=tk.LEFT, padx=2)
         lb_group = ttk.Label(right_fr, text="▤批量分类组(左键应用/右键保存)")
         lb_group.pack(anchor=tk.W, padx=rp, pady=(1, 1))
         lb_group.bind("<Button-1>", self.show_all_presets)
@@ -1297,42 +1525,27 @@ class MediaManagerApp:
             btn.bind("<Button-1>", lambda e, idx=i: self.move_to_dir(idx))
             btn.bind("<Button-3>", lambda e, idx=i: self.set_move_dir(idx))
             btn.pack(side=tk.LEFT)
-        if True:
-            btn = ttk.Button(
-                move_fr, text="🗑删除", width=6, command=self.delete_selected_file
-            )
-            btn.pack(side=tk.LEFT, padx=4)
+        ttk.Button(move_fr, text="🗑删除", width=6, command=self.delete_selected_file).pack(side=tk.LEFT, padx=4)
+        self.switch_move_confirm_flag= tk.BooleanVar(value=True)
+        ttk.Checkbutton(move_fr, text="确认", variable=self.switch_move_confirm_flag).pack(side=tk.LEFT, padx=0)
 
-    # 上一个条目
-    def prev_item(self):
+
+    def nav_item(self, step=0):
         s = self.file_tree.selection()
         if not s:
             return
         lst = self.file_tree.get_children()
         i = self.file_tree.index(s[0])
-        if i > 0:
-            self.file_tree.selection_set(lst[i - 1])
-            self.file_tree.focus(lst[i - 1])
+        target_i = i + step
+        if 0 <= target_i < len(lst):
+            target = lst[target_i]
+            self.file_tree.selection_set(target)
+            self.file_tree.focus(target)
             if self.switch_auto_open_flag.get():
                 s = self.file_tree.selection()
                 os.startfile(self.file_tree.item(s[0], "values")[0])
-                if self.switch_slim_mode_flag.get():self.root.after(300, lambda: self.root.focus_force())
-
-    # 下一个条目
-    def next_item(self):
-        s = self.file_tree.selection()
-        if not s:
-            return
-        lst = self.file_tree.get_children()
-        i = self.file_tree.index(s[0])
-        if i + 1 < len(lst):
-            it = lst[i + 1]
-            self.file_tree.selection_set(it)
-            self.file_tree.focus(it)
-            if self.switch_auto_open_flag.get():
-                s = self.file_tree.selection()
-                os.startfile(self.file_tree.item(s[0], "values")[0])
-                if self.switch_slim_mode_flag.get():self.root.after(300, lambda: self.root.focus_force())
+                if self.switch_slim_mode_flag.get():
+                    self.root.after(300, lambda: self.root.focus_force())
 
     def refresh_tags_list(self):
         self.cb_tagm["values"] = ["全部", "未分类"] + self.config_data.get(
@@ -1359,24 +1572,27 @@ class MediaManagerApp:
         self.tag_main_check_map.clear()
         ths = self.config_data.get("tag_main", [])
         rowcnt = self.config_data.get("tag_max_row", DEFAULT_MAX_ROW)
-        import math
-
-        col = math.ceil(len(ths) / rowcnt)
+        col = (len(ths) + rowcnt - 1) // rowcnt
         idx = 0
-        hotkeys = ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "[", "]","F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
+        hotkeys =      ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0","F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
+        hotkeys_show = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0","F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
         for c in range(col):
             for r in range(rowcnt):
                 if idx >= len(ths):
                     break
                 n = ths[idx]
+                if n.count("sep"):
+                    ttk.Label(self.tagm_inner,text="—"+n.replace("sep","")).grid(row=r, column=c, sticky="w")
+                    idx += 1
+                    continue
                 t=n
                 v = tk.BooleanVar()
                 if idx < len(hotkeys):
-                    t=t+":"+hotkeys[idx].upper()
+                    t="["+hotkeys_show[idx]+"]"+t
                     self.hotkey_dict[hotkeys[idx]] = lambda x=n, var=v: (var.set(not var.get()), self.toggle_tagm(x, var))
                 if tag_count:
                     if tag_counter[n]:
-                        t=n+" "+str(tag_counter[n])
+                        t=t+"("+str(tag_counter[n])+")"
                 cb = ttk.Checkbutton(
                     self.tagm_inner,
                     text=t,
@@ -1401,27 +1617,27 @@ class MediaManagerApp:
         self.tag_extra_check_map.clear()
         acs = self.config_data.get("tag_extra", [])
         rowcnt = self.config_data.get("tag_max_row", DEFAULT_MAX_ROW)
-        import math
-        hotkeys = ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'","z", "x", "c", "v", "b", "n", "m", ",", ".", "/"]
-        col = math.ceil(len(acs) / rowcnt)
+        col = (len(acs) + rowcnt - 1) // rowcnt
         idx = 0
+        hotkeys =     ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'","z", "x", "c", "v", "b", "n", "m"]
+        hotkeys_show = ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P","A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'","Z", "X", "C", "V", "B", "N", "M"]
         for c in range(col):
             for r in range(rowcnt):
                 if idx >= len(acs):
                     break
                 n = acs[idx]
+                if n.count("sep"):
+                    ttk.Label(self.tagm_inner,text="——"+n.replace("sep","")).grid(row=r, column=c, sticky="w")
+                    idx += 1
+                    continue
                 t=acs[idx]
-                if tag_count:
-                    if tag_counter[n]:
-                        t=n+" "+str(tag_counter[n])
-
                 v = tk.BooleanVar()
                 if idx < len(hotkeys):
-                    t=t+":"+hotkeys[idx].upper()
+                    t="["+hotkeys_show[idx]+"]"+t
                     self.hotkey_dict[hotkeys[idx]] = lambda x=n, var=v: (var.set(not var.get()), self.toggle_tage(x, var))
                 if tag_count:
                     if tag_counter[n]:
-                        t=n+" "+str(tag_counter[n])
+                        t=t+"("+str(tag_counter[n])+")"
                 cb = ttk.Checkbutton(
                     self.tage_inner,
                     text=t,
@@ -1448,7 +1664,7 @@ class MediaManagerApp:
             key = f"move_{i+1}"
             path = self.config_data.get(key, "未设置")
             info += f"目录{i+1}：{path}\n"
-        messagebox.showinfo("全部快捷目录", info.strip())
+        zen_msgbox("全部快捷目录", info.strip())
 
     def move_to_dir(self, idx):
         sel = self.file_tree.selection()
@@ -1456,13 +1672,11 @@ class MediaManagerApp:
             return
         dst = os.path.normpath(self.config_data.get(f"move_{idx+1}", ""))
         if not os.path.isdir(dst):
-            messagebox.showwarning("提示", "目录未配置，右键按钮设置")
+            zen_msgbox("提示", "目录未配置，右键按钮设置")
             return
         # 移动前确认
-        if not messagebox.askyesno(
-            "确认移动", f"确定要将选中文件移动到目录：\n【{dst}】\n吗？"
-        ):
-            return
+        if self.switch_move_confirm_flag.get():
+            if not zen_askyesno("确认移动", f"确定要将选中文件移动到目录：\n【{dst}】\n吗？"):return
         # 先收集所有要移动的文件（去重、判断是否同文件、判断是否覆盖）
         move_list = []
         overwrite_list = []
@@ -1481,14 +1695,14 @@ class MediaManagerApp:
             move_list.append((src, new_p))
         # 如果完全没东西要移动
         if not move_list:
-            messagebox.showinfo("提示", "无需移动（文件已在目标目录）")
+            zen_msgbox("提示", "无需移动（文件已在目标目录）")
             return
         # 如果有需要覆盖的文件 → 列出来让用户确认
         if overwrite_list:
             files = "\n".join(overwrite_list[:10])
             if len(overwrite_list) > 10:
                 files += f"\n...等 {len(overwrite_list)} 个文件"
-            if not messagebox.askyesno(
+            if not zen_askyesno(
                 "文件已存在", f"以下文件将被覆盖：\n{files}\n\n确定继续吗？"
             ):
                 return
@@ -1507,16 +1721,16 @@ class MediaManagerApp:
                     self.media_dict[new_p] = self.media_dict.pop(src)
                 success += 1
             except Exception as e:
-                messagebox.showerror("移动失败", f"{os.path.basename(src)}\n{str(e)}")
+                zen_msgbox("移动失败", f"{os.path.basename(src)}\n{str(e)}")
 
         ##        self.scan_media()
 
-        messagebox.showinfo("完成", f"成功移动 {success} 个文件")
+        zen_msgbox("完成", f"成功移动 {success} 个文件")
         self.refresh_file_list()
 
     def save_preset(self, idx):
         if not self.current_select_path:
-            messagebox.showinfo("提示", "请先选中一个文件再保存模板")
+            zen_msgbox("提示", "请先选中一个文件再保存模板")
             return
 
         d = self.media_dict[self.current_select_path]
@@ -1533,13 +1747,13 @@ class MediaManagerApp:
 
         # 超简洁确认
         if new_main == "空" and new_extra == "空":
-            messagebox.showinfo(
+            zen_msgbox(
                 "保存分组模板",
                 f"新分组：内容分类[{new_main}] 附加分类[{new_extra}]\n\n" f"请重新设置",
             )
             return
 
-        if not messagebox.askyesno(
+        if not zen_askyesno(
             "保存分组模板",
             f"模板{idx+1}\n"
             f"旧分组：内容分类[{old_main}] 附加分类[{old_extra}]\n"
@@ -1562,35 +1776,34 @@ class MediaManagerApp:
             main = " | ".join(preset.get("tag_main", [])) or "空"
             extra = " | ".join(preset.get("tag_extra", [])) or "空"
             info += f"分类组{i+1}\n内容分类：[{main}]\n附加分类：[{extra}]\n\n"
-        messagebox.showwarning("全部快捷分类组模板一览", info)
+        zen_msgbox("全部快捷分类组模板一览", info)
 
     def apply_preset(self, idx):
         sel = self.file_tree.selection()
         if not sel:
             return
         cnt = len(sel)
-
         preset = self.config_data.get(f"preset_{idx+1}", {})
         ths = preset.get("tag_main", [])
         acs = preset.get("tag_extra", [])
         if not ths and not acs:
-            messagebox.showwarning(
-                "提示",
-                f"当前快捷分类模板{idx+1}为空，请设置内容分类和附加分类后以右键点击按钮保存分类组",
-            )
+            zen_msgbox("提示",f"当前快捷分类模板{idx+1}为空，请设置内容分类和附加分类后以右键点击按钮保存分类组",)
             return
         main_str = " | ".join(ths) if ths else "无"
         extra_str = " | ".join(acs) if acs else "无"
         msg = f"确定要对【{cnt}个文件】批量设置标签吗？\n\n内容分类：{main_str}\n附加分类：{extra_str}"
 
         if cnt > 3:
-            if not messagebox.askyesno("确认操作", msg):
+            if not zen_askyesno("确认操作", msg):
                 return
         for item in sel:
+            
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
+            if self.media_dict[p]["locked"]:continue #如果文件时锁定则跳过
             info = self.media_dict[p]
             info["tag_main"] = ths.copy()
             info["tag_extra"] = acs.copy()
+            self.media_dict[p]=info
             self.save_file_meta(p, info)
             self.refresh_file_row(p, item)
         self.on_tree_select(None)
@@ -1602,16 +1815,34 @@ class MediaManagerApp:
         cnt = len(sel)
         msg = f"确定对【{cnt}个文件】清空全部分类标签？"
         if cnt > 3:
-            if not messagebox.askyesno("确认操作", msg):
+            if not zen_askyesno("确认操作", msg):
                 return
         for item in sel:
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
+            if self.media_dict[p]["locked"]:continue #如果文件时锁定则跳过
             info = self.media_dict[p]
             info["tag_main"] = []
             info["tag_extra"] = []
+            self.media_dict[p]=info
             self.save_file_meta(p, info)
             self.refresh_file_row(p, item)
         self.on_tree_select(None)
+
+    def switch_file_locked(self):
+        sel = self.file_tree.selection()
+        if not sel:
+            return
+        for item in sel:
+            p = os.path.normpath(self.file_tree.item(item, "values")[0])
+            info = self.media_dict[p]
+            if self.switch_file_locked_flag.get():
+                info["locked"] = True
+            else:
+                info["locked"] = False
+            self.media_dict[p]=info
+            self.save_file_meta(p, info)
+        self.on_tree_select(None)
+
 
     def refresh_file_row(self, p, target_row=None):
         info = self.media_dict[p]
@@ -1629,6 +1860,35 @@ class MediaManagerApp:
             self.file_tree.item(target_row, values=values)
         else:
             return values
+        
+
+    def set_file_score_setp(self,step):
+        sel = self.file_tree.selection()
+        if not sel:
+            return
+        # 判断第一个当前评分是否和新评分一致，如是则新评分置0
+        p_tmp = os.path.normpath(self.file_tree.item(sel[0], "values")[0])
+        num= self.media_dict[p_tmp]["score"]
+        if num==0:
+            if step>0:
+                num=3
+            else:
+                num=2
+        else:
+            num=max(0,min(5,num+step))
+        if self.media_dict[p_tmp]["score"] == num:
+            return
+        for item in sel:
+            p = os.path.normpath(self.file_tree.item(item, "values")[0])
+            if self.media_dict[p]["locked"]:continue #如果文件时锁定则跳过
+            self.media_dict[p]["score"] = num
+            self.save_file_meta(p, self.media_dict[p])
+            self.refresh_file_row(p, item)
+        if self.switch_auto_score_next.get():
+            self.next_item()
+
+        self.on_tree_select(None)
+
 
     def set_file_score(self, num):
         sel = self.file_tree.selection()
@@ -1640,6 +1900,7 @@ class MediaManagerApp:
             num = 0
         for item in sel:
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
+            if self.media_dict[p]["locked"]:continue #如果文件时锁定则跳过
             self.media_dict[p]["score"] = num
             self.save_file_meta(p, self.media_dict[p])
             self.refresh_file_row(p, item)
@@ -1656,7 +1917,9 @@ class MediaManagerApp:
         stat = var.get()
         for item in sel:
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
+            if self.media_dict[p]["locked"]:var.set(not stat);continue #如果文件时锁定则跳过
             lst = self.media_dict[p]["tag_main"]
+            
             if stat and name not in lst:
                 lst.append(name)
             elif not stat and name in lst:
@@ -1673,6 +1936,7 @@ class MediaManagerApp:
         stat = var.get()
         for item in sel:
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
+            if self.media_dict[p]["locked"]:var.set(not stat);continue #如果文件时锁定则跳过
             lst = self.media_dict[p]["tag_extra"]
             if stat and name not in lst:
                 lst.append(name)
@@ -1701,6 +1965,8 @@ class MediaManagerApp:
         info = self.media_dict[p]
         self.rename_entry.delete(0, tk.END)
         self.rename_entry.insert(0, os.path.splitext(info["name"])[0])
+        self.switch_file_locked_flag.set(info["locked"])
+        
         for i in range(5):
             self.score_btn_list[i].config(
                 fg="gold" if i < info["score"] else "gray", bg=ZEN_THEME["bg_main"]
@@ -1726,19 +1992,22 @@ class MediaManagerApp:
                 "tag_extra": [],
                 "resolution": "",
                 "definition": "",
+                "locked":False
             }
 
+
+    def _do_save_keep_time(self, fp, ads, data):
+        st = os.stat(fp) if os.path.exists(fp) else None
+        with open(ads, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+        st and os.utime(ads, (st.st_atime, st.st_mtime))
     def save_file_meta(self, p, data):
-        fp = os.path.normpath(p)
-        ads = fp + ADS_SUFFIX
+        fp, ads = os.path.normpath(p), os.path.normpath(p) + ADS_SUFFIX
         try:
-            st = os.stat(fp) if os.path.exists(fp) else None
-            with open(ads, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=1)
-            if st:
-                os.utime(ads, (st.st_atime, st.st_mtime))
-        except Exception:
-            pass
+            self._do_save_keep_time(fp, ads, data)
+        except:
+            try: os.chmod(fp, 0o666); self._do_save_keep_time(fp, ads, data)
+            except: pass
 
     # 竖屏取短边算清晰度【V2.1修订】
     def get_video_def_info(self, p):
@@ -1884,6 +2153,10 @@ class MediaManagerApp:
                     sz = os.path.getsize(full)
                     meta = self.load_file_meta(full)
                     res, defi, info = None, None, None
+                    #新增locked标识 做个临时转换，2027取消
+                    if not "locked" in meta:
+                        meta["locked"]=False
+                    
                     if ftype == "视频":
                         # if ftype=="视频" :#用于手动处理，刷新清晰度
                         res, defi, info = (
@@ -1900,6 +2173,7 @@ class MediaManagerApp:
                             "tag_extra": meta["tag_extra"],
                             "resolution": res,
                             "definition": defi,
+                            "locked":meta["locked"],
                             "video_info": info,
                         }
                         if not (res or defi or info) or force_gen:
@@ -1925,6 +2199,7 @@ class MediaManagerApp:
                             "tag_extra": meta["tag_extra"],
                             "resolution": res,
                             "definition": defi,
+                            "locked":meta["locked"],
                             "image_info": info,
                         }
                         if not (res or defi or info) or force_gen:
@@ -1945,6 +2220,7 @@ class MediaManagerApp:
                             "tag_extra": meta["tag_extra"],
                             "resolution": "无",
                             "definition": "未知",
+                            "locked":False,
                         }
         self.refresh_file_list()
         return file_count, len(self.media_dict)
@@ -2080,10 +2356,12 @@ class MediaManagerApp:
 
     def delete_selected_file(self):
         sel = self.file_tree.selection()
+        sel_id= self.file_tree.index(sel[0])  
+
         if not sel:
             return
-        if not messagebox.askyesno("确认", "删除选中文件？"):
-            return
+        if self.switch_move_confirm_flag.get(): 
+            if not zen_askyesno("确认", "删除选中文件？"):return
         for item in sel:
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
             try:
@@ -2094,48 +2372,95 @@ class MediaManagerApp:
                 if p in self.media_dict:
                     del self.media_dict[p]
                 self.file_tree.delete(item)
-                
             except Exception:
                 pass
-        self.refresh_file_list()
+        lst = self.file_tree.get_children()
+        target = lst[min(sel_id, len(lst)-1)]
+        self.file_tree.selection_set(target)
+        self.file_tree.focus(target)
+
+        # self.refresh_file_list()
 
     # 【V2.1.8修订：改名成功自动选中新文件】
     def single_rename(self):
-        if not self.current_select_path or len(self.file_tree.selection()) != 1:
-            messagebox.showwarning("提示", "请单选一个文件")
-            return
-        new_name = self.rename_entry.get().strip()
-        if not new_name:
-            messagebox.showwarning("提示", "名称不能为空")
-            return
-        old_p = os.path.normpath(self.current_select_path)
-        ext = os.path.splitext(old_p)[1]
-        dir_p = os.path.dirname(old_p)
-        new_full = os.path.normpath(os.path.join(dir_p, new_name + ext))
-        if new_full == self.current_select_path:
-            return
-        idx = 1
-        while os.path.exists(new_full):
-            new_full = os.path.normpath(os.path.join(dir_p, f"{new_name}{idx:02d}{ext}"))
-            idx += 1
-        try:
-            os.rename(old_p, new_full)
-            ads_old = old_p + ADS_SUFFIX
-            ads_new = new_full + ADS_SUFFIX
-            if os.path.exists(ads_old):
-                os.rename(ads_old, ads_new)
-            info=self.media_dict.pop(old_p)
-            info["name"]=os.path.basename(new_full)
-            self.media_dict[new_full] = info
-            # 刷新并选中
-            self.refresh_file_row(new_full, self.file_tree.selection()[0])
-            self.current_select_path = new_full
-            self.rename_entry.delete(0, tk.END)
-            self.rename_entry.insert(0, os.path.splitext(info["name"])[0])
-            
+        count_select_file=len(self.file_tree.selection())
 
-        except Exception as e:
-            messagebox.showerror("改名失败", str(e))
+        if count_select_file==0:
+            zen_msgbox("提示", "请选择至少一个文件")
+            return
+        elif count_select_file==1:
+            new_name = self.rename_entry.get().strip()
+            if not new_name:return
+            old_p = os.path.normpath(self.current_select_path)
+            ext = os.path.splitext(old_p)[1]
+            dir_p = os.path.dirname(old_p)
+            new_full = os.path.normpath(os.path.join(dir_p, new_name + ext))
+            if new_full == self.current_select_path:return
+            idx = 1
+            while os.path.exists(new_full):
+                new_full = os.path.normpath(os.path.join(dir_p, f"{new_name}{idx:02d}{ext}"))
+                idx += 1
+            try:
+                os.rename(old_p, new_full)
+                ads_old = old_p + ADS_SUFFIX
+                ads_new = new_full + ADS_SUFFIX
+                if os.path.exists(ads_old):
+                    os.rename(ads_old, ads_new)
+                info=self.media_dict.pop(old_p)
+                info["name"] = os.path.basename(new_full)
+                self.media_dict[new_full] = info
+                # 刷新并选中
+                self.refresh_file_row(new_full, self.file_tree.selection()[0])
+                self.current_select_path = new_full
+                self.rename_entry.delete(0, tk.END)
+                self.rename_entry.insert(0, os.path.splitext(info["name"])[0])
+            except Exception as e:
+                zen_msgbox("改名失败", str(e))
+
+        elif count_select_file > 1:
+            new_name = self.rename_entry.get().strip()
+            confirm = zen_askyesno("批量改名", f"已选中 {count_select_file} 个文件，确定批量改名吗？")
+            if not confirm:
+                return
+            dir_p = None
+            idx = 1
+            # 遍历所有选中文件逐个改名
+            for item in self.file_tree.selection():
+                old_p = os.path.normpath(self.file_tree.item(item, "values")[0])
+                ext = os.path.splitext(old_p)[1]
+                dir_p = os.path.dirname(old_p)
+                # 拼接新路径，重复则累加序号
+                new_full = os.path.normpath(os.path.join(dir_p, f"{new_name}{idx:02d}{ext}"))
+                while os.path.exists(new_full):
+                    idx += 1
+                    new_full = os.path.normpath(os.path.join(dir_p, f"{new_name}{idx:02d}{ext}"))
+
+                # 执行重命名 + 处理ADS
+                try:
+                    os.rename(old_p, new_full)
+                    ads_old = old_p + ADS_SUFFIX
+                    ads_new = new_full + ADS_SUFFIX
+                    if os.path.exists(ads_old):
+                        os.rename(ads_old, ads_new)
+
+                    # 更新字典
+                    info = self.media_dict.pop(old_p)
+                    info["name"] = os.path.basename(new_full)
+                    self.media_dict[new_full] = info
+
+                    # 刷新行
+                    self.refresh_file_row(new_full, item)
+
+                except Exception as e:
+                    zen_msgbox("改名失败", f"【{os.path.basename(old_p)}】\n{str(e)}")
+                    continue
+
+                idx += 1
+
+            # 清空输入框
+            self.rename_entry.delete(0, tk.END)
+            self.current_select_path = ""
+            return
 
     def batch_rename_files(self):
         sel = self.file_tree.selection()
@@ -2171,7 +2496,7 @@ class MediaManagerApp:
             except Exception:
                 pass
         self.refresh_file_list()
-        messagebox.showinfo("批量完成", f"成功{cnt}个")
+        zen_msgbox("批量完成", f"成功{cnt}个")
 
     def restore_original_name(self):
         sel = self.file_tree.selection()
@@ -2196,13 +2521,6 @@ class MediaManagerApp:
                 rest = tags[1:]
             else:
                 rest = tags
-            ths = [x for x in rest if x in all_th]
-            acs = [x for x in rest if x in all_ac]
-            info = self.media_dict[p]
-            info["score"] = sc
-            info["tag_main"] = ths
-            info["tag_extra"] = acs
-            self.save_file_meta(p, info)
             new_p = os.path.normpath(os.path.join(os.path.dirname(p), raw))
             if os.path.exists(new_p):
                 continue
@@ -2218,12 +2536,14 @@ class MediaManagerApp:
             except Exception:
                 pass
         self.refresh_file_list()
-        messagebox.showinfo("还原完成", f"{cnt}个文件已去掉标签后缀")
+        zen_msgbox("还原完成", f"{cnt}个文件已去掉标签后缀")
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    font_size_adjust(1)
+    font_size_adjust(0,"A")
     cycle_color()
+    if 18 <= datetime.now().hour or datetime.now().hour < 7:
+        cycle_color()#如果是夜晚初始主题为深色
     app = MediaManagerApp(root)
     root.mainloop()
