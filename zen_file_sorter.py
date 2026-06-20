@@ -15,10 +15,28 @@ try:
     from PIL.ExifTags import TAGS
 except ImportError:
     Image = None
-
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+except Exception:
+    pass
 
 # =====================全局常量【锁定】=====================
 DEFAULT_CONFIG_NAME = "zen_config.ini"
+ZEN_THEME = {
+    "name":"默认配色",# 配色名字
+    "base_theme": "vista",  # 这里用 vista
+    "bg_main": "#f0f0f0",  # 窗口/控件 背景
+    "fg_main": "#000000",  # 文字颜色
+    "bg_field": "#ffffff",  # 输入框/列表背景
+    "border": "#7f9db9",  # 控件边框
+    "select": "#3399ff",  # 选中高亮
+    "trough": "#e6e6e6",  # 进度条凹槽
+    "bar": "#3399ff",  # 进度条填充
+    "arrow": "#000000",  # 下拉箭头
+    "hover": "#e5f3ff",  # 按钮/控件 hover
+}
+ZEN_FONT=["Microsoft YaHei",11]
+ZEN_FONT_S=["Microsoft YaHei",11]
 VIDEO_FORMATS = (".mp4", ".mkv", ".avi", ".mov", ".flv", ".rmvb", ".wmv")
 AUDIO_FORMATS = (".mp3", ".wav", ".flac", ".ape", ".ogg")
 IMAGE_FORMATS = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".heic", ".raw", ".webp")
@@ -38,7 +56,12 @@ DEFAULT_TAG_MAIN = [
     "教程", "素材", "报告", "小说",
 ]
 DEFAULT_TAG_EXTRA = ["国产", "港台", "日韩", "欧美","学习","聚会","工作","旅行","抖音","下载","自制","收藏", "分享","存档"]
+HOTKEY_TAG_MAIN=["1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
 
+HOTKEY_TAG_EXTRA=["q", "w", "e", "r", "t", "y", "u", "i", "o", "p",
+        "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'",
+        "z", "x", "c", "v", "b", "n", "m"]
 
 
 # =====================版本信息备忘【锁定】=====================
@@ -51,7 +74,18 @@ TODO:
 2、优化文档，研究打包更小的exe
 3、增加linux的适配
 4、增加http服务器，提供远程html查看列表和局域网远程播放功能
-5、
+
+
+
+V2.2.1 优化备忘
+1、修复bug逻辑bug
+2、重构zen_toast、把tagcheck的refresh、toggle合二为一重构了
+3、优化windwos的DPI处理，解决系统缩放导致的文字模糊
+4、右侧打分、内容、附加分类右键点击都会调整筛选的条件，更方便使用
+5、增加了ads标签里date的属性，存储文件创建时间，重写scan_media
+6、分类标签增加了sep行，自动换列
+7、去除掉兼容旧版本属性标签的版本代码，优化自动创建config的bug
+8、下一步准备全代码重构优化
 
 V2.2 实用版本:完善快捷键、单手操作、文件防护细节，版本完整可用，在使用中修复bug和优化功能
 1.重新划分快捷键：F键+数字键控制主标签，字母键控制附加标签，按键分工更清晰（v2.2.0）
@@ -115,22 +149,7 @@ def get_def_by_height(short_px):
         return "SD"
     else:
         return "LD"
-ZEN_THEME = {
-    "name":"默认配色",# 配色名字
-    "base_theme": "vista",  # 这里用 vista
-    "bg_main": "#f0f0f0",  # 窗口/控件 背景
-    "fg_main": "#000000",  # 文字颜色
-    "bg_field": "#ffffff",  # 输入框/列表背景
-    "border": "#7f9db9",  # 控件边框
-    "select": "#3399ff",  # 选中高亮
-    "trough": "#e6e6e6",  # 进度条凹槽
-    "bar": "#3399ff",  # 进度条填充
-    "arrow": "#000000",  # 下拉箭头
-    "hover": "#e5f3ff",  # 按钮/控件 hover
-}
-ZEN_FONT_S=["Microsoft YaHei",10]
-ZEN_FONT=["Microsoft YaHei",11]
-ZEN_FONT_L=["Times New Roman", 12]
+
 
 def cycle_theme():
     """极简：循环切换系统自带主题 + 应用全局字体"""
@@ -159,28 +178,28 @@ def cycle_theme():
     font_size_adjust()
 
 
-def font_size_adjust(step=0,mode="ALL"):
-    if max(ZEN_FONT_S[1], ZEN_FONT[1],ZEN_FONT_S[1])>15 and step>0:return
-    if min(ZEN_FONT_S[1], ZEN_FONT[1],ZEN_FONT_S[1])<7 and step<0:return
+def font_size_adjust(step=0,mode=""):
+    if step>0:
+        if ZEN_FONT[1]>15:return
+        elif ZEN_FONT_S[1]>15:return
+    elif step<0:
+        if ZEN_FONT[1]<8:return
+        elif ZEN_FONT_S[1]<8:return
+
     if mode=="BOTH":
         ZEN_FONT_S[1]+= step
         ZEN_FONT[1]+= step
-    elif mode=="ALL":
-        ZEN_FONT_S[1]+= step
-        ZEN_FONT[1]+= step
-        ZEN_FONT_L[1]+= step
     elif mode=="RESET":
         ZEN_FONT_S[1] = 10
         ZEN_FONT[1] = 11
-        ZEN_FONT_L[1] = 12
     elif mode=="A":
         ZEN_FONT[1]+= step
     elif mode=="T":
         ZEN_FONT_S[1]+= step
-    elif mode=="L":
-        ZEN_FONT_L[1]+= step
     else:
         return
+    if mode:
+        zen_toast(f"正常字体：{ZEN_FONT[1]}号，\n列表字体：{ZEN_FONT_S[1]}号")
     root.option_add("*Font", ZEN_FONT)
     # root.option_add("*TCombobox*Listbox.font", ZEN_FONT)
     style = ttk.Style()
@@ -462,65 +481,36 @@ def set_win_title_color(win):
 
 
 # ===================== 自定义主题弹窗 =====================
-def zen_toast(root, msg, duration=15000):
+def zen_msgbox(title,text):
+    win=_zen_msg_pre(title,text)
+    # 按钮
+    ttk.Button(win, text="确定", command=win.destroy).pack(pady=(0, 18))
+    win.bind("<Return>", lambda e: win.destroy())
+    _zen_msg_after(win)
+def zen_toast(text,duration=2000):
     transp = "#010101"
-    bg = "#64B177"
-    fg = "#DC3535"
     toast = tk.Toplevel(root)
     toast.overrideredirect(True)
     toast.attributes("-topmost", True)
     toast.attributes("-transparentcolor", transp)
     toast.config(bg=transp)
-
-    lb1 = ttk.Label(
-        toast,
-        text=msg,
-        background=transp,
-        foreground=ZEN_THEME["fg_main"],
-        font=ZEN_FONT_L,
-        padding=(20, 9),
-    )
-    lb1.pack()
-
-    # 关闭函数
-    def close_toast(e=None):
-        try:
-            toast.destroy()
-        except:
-            pass
-
-    lb1.bind("<Button-1>", close_toast)
-    toast.bind("<Button-1>", close_toast)
-
-    toast.update_idletasks()
-    x = root.winfo_x() + (root.winfo_width() - toast.winfo_width()) // 2
-    y = root.winfo_y() + root.winfo_height() - toast.winfo_height() - 40
-    toast.geometry(f"+{x}+{y}")
-    toast.after(duration, close_toast)
-
-def zen_msgbox(title,text):
-    win=_zen_msg_pre(title)
     # 文本标签，自动换行、自适应宽高
-    lab = ttk.Label(win,text=text,foreground=ZEN_THEME["fg_main"],font=ZEN_FONT,wraplength=350)
+    lab = ttk.Label(toast,text=text,background=transp,foreground=ZEN_THEME["fg_main"],font=[ZEN_FONT[0],ZEN_FONT[1]+4],wraplength=350)
     lab.pack(padx=25, pady=20)
     # 按钮
-    ttk.Button(win, text="确定", command=win.destroy).pack(pady=(0, 18))
-    win.bind("<Return>", lambda e: win.destroy())
-    win.bind("<Escape>", lambda e: win.destroy())
-    _zen_msg_after(win)
+    ttk.Button(toast, text="确定", command=toast.destroy).pack(pady=(0, 18))
+    toast.bind("<Return>", lambda e: toast.destroy())
+    _zen_msg_after(toast,duration)
 
-
-def _zen_msg_pre(title):
+def _zen_msg_pre(title=None,text=None):
     win = tk.Toplevel(root)
-    win.title(title)
+    if title:win.title(title)
     win.configure(bg=ZEN_THEME["bg_main"])
     win.transient(root)
     win.grab_set()
+    if text:ttk.Label(win,text=text,foreground=ZEN_THEME["fg_main"],font=ZEN_FONT,wraplength=600).pack(padx=50, pady=60)
     return win
-def _zen_msg_after(win):
-    # win.geometry("")
-    # win.resizable(False, False)
-
+def _zen_msg_after(win,duration=0):
     win.update_idletasks()
     # 窗口自身宽、高
     w = win.winfo_width()
@@ -531,16 +521,17 @@ def _zen_msg_after(win):
     x = (screen_w - w) // 2
     y = (screen_h - h) // 2
     win.geometry(f"{w}x{h}+{x}+{y}")
-
-
-    win.focus()
-    root.wait_window(win)
+    win.bind("<Escape>", lambda e: win.destroy())
+    if duration:
+        win.after(duration, lambda: win.destroy())
+    else:
+        win.focus()
+        root.wait_window(win)
+        
 def zen_askyesno(title, text):
     """是/否 确认框，返回 True(是) / False(否)"""
-    win = _zen_msg_pre(title)
+    win = _zen_msg_pre(title,text)
     result = [False]
-    lab = ttk.Label(win, text=text, foreground=ZEN_THEME["fg_main"], font=ZEN_FONT, wraplength=350)
-    lab.pack(padx=25, pady=20)
     # 按钮容器
     btn_frame = ttk.Frame(win)
     btn_frame.pack(pady=(0, 18))
@@ -555,18 +546,14 @@ def zen_askyesno(title, text):
     ttk.Button(btn_frame, text="否", command=on_no).grid(row=0, column=1, padx=15)
     # 回车默认触发「是」
     win.bind("<Return>", lambda e: on_yes())
-    win.bind("<Escape>", lambda e: on_no())
     win.focus_force()
     # 自适应大小、禁止缩放
     _zen_msg_after(win)
     return result[0]
-def zen_askstring(title, prompt, default=""):
-    win = _zen_msg_pre(title)
+def zen_askstring(title, text, default=""):
+    win = _zen_msg_pre(title,text)
     # 存储结果
     result = [None]
-    # 提示文本
-    lab = ttk.Label(win, text=prompt, foreground=ZEN_THEME["fg_main"], font=ZEN_FONT, wraplength=350)
-    lab.pack(padx=25, pady=(20, 10))
     # 输入框
     entry_var = tk.StringVar(value=default)
     entry = ttk.Entry(win, textvariable=entry_var, font=ZEN_FONT)
@@ -584,7 +571,6 @@ def zen_askstring(title, prompt, default=""):
     ttk.Button(btn_frame, text="取消", command=on_cancel).grid(row=0, column=1, padx=15)
     # 快捷键：回车确认，ESC取消
     win.bind("<Return>", lambda e: on_ok())
-    win.bind("<Escape>", lambda e: on_cancel())
     # 输入框优先聚焦
     entry.focus()
     _zen_msg_after(win)
@@ -599,7 +585,7 @@ class TagsManagerUI(tk.Toplevel):
         self.root = master_root
         self.app = app_obj
         self.title(win_title)
-        self.geometry("420x760")
+        self.geometry("700x760")
         self.transient(self.root)
         self.columnconfigure((0, 1), weight=1)
         self.rowconfigure(0, weight=1)
@@ -617,6 +603,7 @@ class TagsManagerUI(tk.Toplevel):
 
             self.protocol("WM_DELETE_WINDOW", self.destroy)
             self.calc_show()
+
 
     def show(self):
         tagm_list = self.app.config_data.get("tag_main", [])
@@ -715,6 +702,9 @@ class SettingUI(tk.Toplevel):
         self.prefix_no = "☐ "
         self.build_ui()
         self.load_data()
+        self.update_idletasks()
+        # 自动适配内容尺寸，去掉固定宽高限制
+        self.geometry("")
     def open_edit_tag(self):
         TagsManagerUI(self.root, self.app, "编辑分类标签：按行区分，直接修改好退出即保存生效", "EDIT")
     def open_calc_tag(self):
@@ -761,9 +751,13 @@ class SettingUI(tk.Toplevel):
 
         fr_dir = ttk.LabelFrame(main_fr, text="🗁扫描目录")
         fr_dir.pack(fill=tk.X, pady=4)
-        self.dir_lb = tk.Listbox(fr_dir, height=4)
+        v_scroll = ttk.Scrollbar(fr_dir, orient="vertical")
+        
+        self.dir_lb = tk.Listbox(fr_dir,yscrollcommand=v_scroll.set)
         cycle_color.apply_listbox(self.dir_lb)
         self.dir_lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+        v_scroll.pack(side="left", fill="y")
+        v_scroll.config(command=self.dir_lb.yview)
         dir_btn = ttk.Frame(fr_dir)
         dir_btn.pack(side=tk.RIGHT, padx=5)
         ttk.Button(dir_btn, text="添加目录", command=self.add_scan_dir).pack(
@@ -1146,13 +1140,13 @@ class MediaManagerApp:
         target_key = VK_RIGHT if go_forward else VK_LEFT
 
         user32.keybd_event(VK_ALT, 0, KEY_DOWN, 0)
-        time.sleep(0.06)
+        time.sleep(0.02)
         user32.keybd_event(VK_ESC, 0, KEY_DOWN, 0)
-        time.sleep(0.08)
+        time.sleep(0.02)
         user32.keybd_event(VK_ESC, 0, KEY_UP, 0)
-        time.sleep(0.06)
+        time.sleep(0.02)
         user32.keybd_event(VK_ALT, 0, KEY_UP, 0)
-        time.sleep(0.15)
+        time.sleep(0.1)
 
         # 单键步进5秒，计算按压次数
         for _ in range(count):
@@ -1205,7 +1199,7 @@ class MediaManagerApp:
             for i in range(5)
         }
         cfg = {
-            "folders": [os.getcwd()],
+            "folders": {os.getcwd():True},
             "tag_main": DEFAULT_TAG_MAIN.copy(),
             "tag_extra": DEFAULT_TAG_EXTRA.copy(),
             "enable_video": True,
@@ -1317,28 +1311,52 @@ class MediaManagerApp:
         left_top_fr.pack(fill=tk.X, padx=5, pady=5)
         btns = [
             ("⚙设置", self.open_setting),
-            # ("𝒾 关于", self.open_about),
-            # ("▦标签统计", self.open_calc_tag),
-            # ("🖍标签编辑", self.open_edit_tag),
+
             ("📝文件名标记", self.batch_rename_files),
             ("↩标记还原", self.restore_original_name),
-            ("全选", self.file_select_all),
-            ("反选", self.file_invert_select),
             ("↺刷新列表", self.refresh_file_list),
             ("🛠扫描文件", self.scan_media),
             # ("🗁打开目录", self.open_folder_by_sel),
             # ("🗑删除文件", self.delete_selected_file),
+            # ("𝒾 关于", self.open_about),
+            # ("▦标签统计", self.open_calc_tag),
+            # ("🖍标签编辑", self.open_edit_tag),
         ]
         for txt, cmd in btns:
             ttk.Button(left_top_fr, text=txt, width=len(txt) * 2, command=cmd).pack(
                 side=tk.LEFT, padx=UI_MAIN_BT_PADX
             )
 
+        # 靠右筛选
+        
+        self.cb_sort = ttk.Combobox(
+            left_top_fr, textvariable=self.var_sort, state="readonly", width=9
+        )
+        self.cb_sort["values"] = [
+            "默认顺序",
+            "文件名升序",
+            "文件名降序",
+            "大小升序",
+            "大小降序",
+            "星级升序",
+            "星级降序",]
+        self.cb_sort.pack(side=tk.RIGHT)
+        self.cb_sort.bind("<<ComboboxSelected>>", lambda e: self.refresh_file_list())
+        ttk.Label(left_top_fr, text="排序：").pack(side=tk.RIGHT, padx=(8, 2))
+        #靠右按钮
+        btns_right = [
+            ("反选", self.file_invert_select),
+            ("全选", self.file_select_all),
+            ("重置筛选条件", self.clear_all_filter),
+        ]
+        for txt, cmd in btns_right:
+            ttk.Button(left_top_fr, text=txt, width=len(txt) * 2, command=cmd).pack(side=tk.RIGHT, padx=UI_MAIN_BT_PADX)
+
+
+
         # 筛选+排序行
         filter_fr = ttk.Frame(left_fr)
         filter_fr.pack(fill=tk.X, padx=5, pady=3)
-
-
         ttk.Label(filter_fr, text="▤筛选 文件名：").pack(side=tk.LEFT)
         e = ttk.Entry(filter_fr, textvariable=self.var_filter_name, width=12)
         e.pack(side=tk.LEFT, padx=2)
@@ -1373,33 +1391,9 @@ class MediaManagerApp:
         self.cb_type = ttk.Combobox(
             filter_fr, textvariable=self.var_filter_type, state="readonly", width=8
         )
-        self.cb_type["values"] = ["全部", "视频", "音频", "图片", "压缩包", "其他文档"]
+        self.cb_type["values"] = ["全部", "视频", "音频", "图片", "压缩", "其他"]
         self.cb_type.pack(side=tk.LEFT)
         self.cb_type.bind("<<ComboboxSelected>>", lambda e: self.refresh_file_list())
-        ttk.Button(filter_fr, text="筛选重置", command=self.clear_all_filter).pack(
-            side=tk.LEFT, padx=5
-        )
-        # 排序下拉
-        
-        self.cb_sort = ttk.Combobox(
-            left_top_fr, textvariable=self.var_sort, state="readonly", width=9
-        )
-        self.cb_sort["values"] = [
-            "默认顺序",
-            "文件名升序",
-            "文件名降序",
-            "大小升序",
-            "大小降序",
-            "星级升序",
-            "星级降序",
-        ]
-        self.cb_sort.pack(side=tk.RIGHT)
-        self.cb_sort.bind("<<ComboboxSelected>>", lambda e: self.refresh_file_list())
-        ttk.Label(left_top_fr, text="排序：").pack(side=tk.RIGHT, padx=(8, 2))
-
-
-
-
 
         # 左侧列表+滚动条
         tree_wrap = ttk.Frame(left_fr)
@@ -1427,9 +1421,9 @@ class MediaManagerApp:
         self.file_tree.column("path", width=420, stretch=tk.YES)
         self.file_tree.column("tags", width=140, stretch=tk.NO)  # 新增标签
         self.file_tree.column("size", width=100, stretch=tk.NO)
-        self.file_tree.column("reso", width=90, stretch=tk.NO)
-        self.file_tree.column("defi", width=60, stretch=tk.NO)
-        self.file_tree.column("score", width=60, stretch=tk.NO)
+        self.file_tree.column("reso", width=110, stretch=tk.NO)
+        self.file_tree.column("defi", width=70, stretch=tk.NO)
+        self.file_tree.column("score", width=80, stretch=tk.NO)
         self.file_tree.bind("<<TreeviewSelect>>", self.on_tree_select)
         self.file_tree.bind("<ButtonRelease-1>", self.click_size_open_file)
         # self.file_tree.bind("<ButtonRelease-3>", self.click_tree_open_properties)
@@ -1450,7 +1444,7 @@ class MediaManagerApp:
         fr_nav = ttk.Frame(right_fr)
         fr_nav.pack(pady=3, anchor="w")
         ttk.Button(fr_nav, text="⬆上一个", width=8, command=lambda:self.nav_item(-1)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(fr_nav, text="⬇下一个", width=8, command=lambda:self.nav_item(-1)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_nav, text="⬇下一个", width=8, command=lambda:self.nav_item(1)).pack(side=tk.LEFT, padx=2)
         ttk.Button(fr_nav, text="🖍执行改名", width=10, command=self.single_rename).pack(side=tk.LEFT)
         right_fr_name= ttk.Frame(right_fr)
         right_fr_name.pack(fill=tk.X, padx=5, pady=5)
@@ -1470,12 +1464,14 @@ class MediaManagerApp:
                 score_fr,
                 text="★",
                 width=3,
-                font=ZEN_FONT_L,
+                font=("Times New Roman",ZEN_FONT[1]+3),
                 fg="gray",
                 bg=ZEN_THEME["bg_main"],
                 command=lambda n=i + 1: self.set_file_score(n),
             )
             b.pack(side=tk.LEFT)
+            b.bind("<Button-3>", lambda e, score=i+1: (
+                self.var_filter_score.set("全部") if self.var_filter_score.get() == score else self.var_filter_score.set(score),self.refresh_file_list()))
             self.score_btn_list.append(b)
         # ttk.Checkbutton(score_fr, text="自动下移", variable=self.switch_auto_score_next).pack(side=tk.LEFT, padx=2)
         self.switch_file_locked_flag= tk.BooleanVar(value=False)
@@ -1499,7 +1495,8 @@ class MediaManagerApp:
         lb_main=ttk.Label(right_fr, text="⊟内容标签（左键统计/右键编辑）")
         lb_main.pack(anchor=tk.W, padx=rp, pady=(1, 1))
         lb_main.bind("<Button-3>", lambda e =i: self.open_edit_tag())
-        lb_main.bind("<Button-1>", lambda e =i: self.refresh_tagm_check(True))
+        lb_main.bind("<Button-2>", lambda e =i: self.open_calc_tag())
+        lb_main.bind("<Button-1>", lambda e =i: self.refresh_tagcheck_list("tag_main",True))
         self.tagm_inner = ttk.Frame(right_fr)
         self.tagm_inner.pack(padx=rp, pady=2, fill=tk.X)
         ttk.Separator(right_fr, orient=tk.HORIZONTAL).pack(
@@ -1508,7 +1505,8 @@ class MediaManagerApp:
         lb_extra=ttk.Label(right_fr, text="⊟附加标签（左键统计/右键编辑）")
         lb_extra.pack(anchor=tk.W, padx=rp, pady=(1, 1))
         lb_extra.bind("<Button-3>", lambda e =i: self.open_edit_tag())
-        lb_extra.bind("<Button-1>", lambda e =i: self.refresh_tage_check(True))
+        lb_extra.bind("<Button-2>", lambda e =i: self.open_calc_tag())
+        lb_extra.bind("<Button-1>", lambda e =i: self.refresh_tagcheck_list("tag_extra",True))
         self.tage_inner = ttk.Frame(right_fr)
         self.tage_inner.pack(padx=rp, pady=2, fill=tk.X)
         ttk.Separator(right_fr, orient=tk.HORIZONTAL).pack(
@@ -1536,16 +1534,23 @@ class MediaManagerApp:
             return
         lst = self.file_tree.get_children()
         i = self.file_tree.index(s[0])
+        if step>0:
+            if i==lst:
+                zen_toast("当前选择的是最后一个文件")
+                return
+        elif step<0:
+            if i==0:
+                zen_toast("当前选择的是第一个文件")
+                return
         target_i = i + step
-        if 0 <= target_i < len(lst):
-            target = lst[target_i]
-            self.file_tree.selection_set(target)
-            self.file_tree.focus(target)
-            if self.switch_auto_open_flag.get():
-                s = self.file_tree.selection()
-                os.startfile(self.file_tree.item(s[0], "values")[0])
-                if self.switch_slim_mode_flag.get():
-                    self.root.after(300, lambda: self.root.focus_force())
+        target = lst[target_i]
+        self.file_tree.selection_set(target)
+        self.file_tree.focus(target)
+        if self.switch_auto_open_flag.get():
+            s = self.file_tree.selection()
+            os.startfile(self.file_tree.item(s[0], "values")[0])
+            if self.switch_slim_mode_flag.get():
+                self.root.after(300, lambda: self.root.focus_force())
 
     def refresh_tags_list(self):
         self.cb_tagm["values"] = ["全部", "未分类"] + self.config_data.get(
@@ -1556,98 +1561,92 @@ class MediaManagerApp:
         )
 
     def rebuild_all_checkbox(self):
-        self.refresh_tagm_check()
-        self.refresh_tage_check()
+        self.refresh_tagcheck_list("tag_main")
+        self.refresh_tagcheck_list("tag_extra")
 
-    def refresh_tagm_check(self,tag_count=False):
-        if tag_count:
-            tag_counter = Counter()
-            for d in self.media_dict.values():
-                for t in d["tag_main"]:
-                    tag_counter[t] += 1
-        if not self.tagm_inner.winfo_exists():
-            return
-        for w in self.tagm_inner.winfo_children():
-            w.destroy()
-        self.tag_main_check_map.clear()
-        ths = self.config_data.get("tag_main", [])
-        rowcnt = self.config_data.get("tag_max_row", DEFAULT_MAX_ROW)
-        col = (len(ths) + rowcnt - 1) // rowcnt
-        idx = 0
-        hotkeys =      ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0","F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
-        hotkeys_show = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0","F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
-        for c in range(col):
-            for r in range(rowcnt):
-                if idx >= len(ths):
-                    break
-                n = ths[idx]
-                if n.count("sep"):
-                    ttk.Label(self.tagm_inner,text="—"+n.replace("sep","")).grid(row=r, column=c, sticky="w")
-                    idx += 1
-                    continue
-                t=n
-                v = tk.BooleanVar()
-                if idx < len(hotkeys):
-                    t="["+hotkeys_show[idx]+"]"+t
-                    self.hotkey_dict[hotkeys[idx]] = lambda x=n, var=v: (var.set(not var.get()), self.toggle_tagm(x, var))
-                if tag_count:
-                    if tag_counter[n]:
-                        t=t+"("+str(tag_counter[n])+")"
-                cb = ttk.Checkbutton(
-                    self.tagm_inner,
-                    text=t,
-                    variable=v,
-                    command=lambda x=n, var=v: self.toggle_tagm(x, var),
-                )
-                cb.grid(row=r, column=c, sticky="w")
-                self.tag_main_check_map[n] = v
-                idx += 1
-        self.tagm_inner.update_idletasks()
 
-    def refresh_tage_check(self,tag_count=False):
-        if tag_count:
-            tag_counter = Counter()
-            for d in self.media_dict.values():
-                for t in d["tag_extra"]:
-                    tag_counter[t] += 1
-        if not self.tage_inner.winfo_exists():
+    def refresh_tagcheck_list(self, tag_type: str, tag_count: bool = False):
+        # 自动匹配对应资源
+        if tag_type == "tag_main":
+            container = self.tagm_inner
+            tag_list = self.config_data.get("tag_main", [])
+            hotkeys = HOTKEY_TAG_MAIN
+            check_map = self.tag_main_check_map
+            tag_filter=self.var_filter_tagm
+        elif tag_type == "tag_extra":
+            container = self.tage_inner
+            tag_list = self.config_data.get("tag_extra", [])
+            hotkeys = HOTKEY_TAG_EXTRA
+            check_map = self.tag_extra_check_map
+            tag_filter=self.var_filter_tage
+        else:
             return
-        for w in self.tage_inner.winfo_children():
-            w.destroy()
-        self.tag_extra_check_map.clear()
-        acs = self.config_data.get("tag_extra", [])
+        # 统计标签计数
+        tag_counter = Counter()
+        if tag_count:
+            for media in self.media_dict.values():
+                for tag in media[tag_type]:
+                    tag_counter[tag] += 1
+
+        # 容器不存在直接退出
+        if not container.winfo_exists():return
+        # 清空旧控件
+        for widget in container.winfo_children():widget.destroy()
+        check_map.clear()
+        #生成checkbox
         rowcnt = self.config_data.get("tag_max_row", DEFAULT_MAX_ROW)
-        col = (len(acs) + rowcnt - 1) // rowcnt
-        idx = 0
-        hotkeys =     ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'","z", "x", "c", "v", "b", "n", "m"]
-        hotkeys_show = ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P","A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'","Z", "X", "C", "V", "B", "N", "M"]
-        for c in range(col):
-            for r in range(rowcnt):
-                if idx >= len(acs):
-                    break
-                n = acs[idx]
-                if n.count("sep"):
-                    ttk.Label(self.tagm_inner,text="——"+n.replace("sep","")).grid(row=r, column=c, sticky="w")
-                    idx += 1
-                    continue
-                t=acs[idx]
-                v = tk.BooleanVar()
-                if idx < len(hotkeys):
-                    t="["+hotkeys_show[idx]+"]"+t
-                    self.hotkey_dict[hotkeys[idx]] = lambda x=n, var=v: (var.set(not var.get()), self.toggle_tage(x, var))
-                if tag_count:
-                    if tag_counter[n]:
-                        t=t+"("+str(tag_counter[n])+")"
-                cb = ttk.Checkbutton(
-                    self.tage_inner,
-                    text=t,
-                    variable=v,
-                    command=lambda x=n, var=v: self.toggle_tage(x, var),
-                )
-                cb.grid(row=r, column=c, sticky="w")
-                self.tag_extra_check_map[n] = v
-                idx += 1
-        self.tage_inner.update_idletasks()
+        sep_switch_threshold = 2
+        tag_cursor = 0
+        hotkey_cursor=0
+
+        checkbox_col = 0       # 当前列
+        checkbox_curren_row = 0   # 当前列已占用行数
+        while tag_cursor < len(tag_list):
+            tag_raw = tag_list[tag_cursor]
+            # 处理分隔行
+            if "sep" in tag_raw:
+                # 当前列行数超过2/3阈值，先切下一列再放分隔符
+                if checkbox_curren_row >= sep_switch_threshold:
+                    checkbox_col += 1
+                    checkbox_curren_row = 0
+                ttk.Label(container,text=f"⋆{tag_raw.replace('sep', '')}⋆ ").grid(row=checkbox_curren_row, column=checkbox_col, sticky="w")
+                checkbox_curren_row += 1
+                tag_cursor += 1
+                continue
+
+            # 下面是你原来普通标签完整逻辑，一字没改
+            display_text = tag_raw
+            hotkey = hotkeys[hotkey_cursor] if tag_cursor < len(hotkeys) else None
+            var = tk.BooleanVar()
+            # 绑定热键
+            if hotkey:
+                display_text = f"[{hotkey.upper()}]{display_text}"
+                hotkey_cb = lambda x=tag_raw, v=var: (v.set(not v.get()),self.toggle_tag(x, v,tag_type))
+                self.hotkey_dict[hotkey] = hotkey_cb
+            # 追加统计数量
+            if tag_count and tag_counter.get(tag_raw, 0):
+                display_text += f"({tag_counter[tag_raw]})"
+            # 复选框左键回调
+            cmd = lambda x=tag_raw, v=var: self.toggle_tag(x, v,tag_type)
+            cb = ttk.Checkbutton(container,text=display_text,variable=var,command=cmd)
+            cb.grid(row=checkbox_curren_row, column=checkbox_col, sticky="w")
+            # 右键绑定
+            cb.bind("<Button-3>", lambda e, tag=tag_raw: (
+                tag_filter.set("全部") if tag_filter.get() == tag else tag_filter.set(tag),self.refresh_file_list()))
+            check_map[tag_raw] = var
+
+            checkbox_curren_row += 1
+            tag_cursor += 1
+            hotkey_cursor+=1
+
+            # 当前列填满最大行数，切换下一列、行归零
+            if checkbox_curren_row >= rowcnt:
+                checkbox_col += 1
+                checkbox_curren_row = 0
+
+
+
+
 
     def set_move_dir(self, idx):
         k = f"move_{idx+1}"
@@ -1909,7 +1908,7 @@ class MediaManagerApp:
 
         self.on_tree_select(None)
 
-    def toggle_tagm(self, name, var):
+    def toggle_tag(self, name, var,tag_type):
         sel = self.file_tree.selection()
         if not sel:
             var.set(False)
@@ -1918,7 +1917,7 @@ class MediaManagerApp:
         for item in sel:
             p = os.path.normpath(self.file_tree.item(item, "values")[0])
             if self.media_dict[p]["locked"]:var.set(not stat);continue #如果文件时锁定则跳过
-            lst = self.media_dict[p]["tag_main"]
+            lst = self.media_dict[p][tag_type]
             
             if stat and name not in lst:
                 lst.append(name)
@@ -1928,25 +1927,6 @@ class MediaManagerApp:
             # 切换分类刷新对应行
             self.refresh_file_row(p, item)
 
-    def toggle_tage(self, name, var):
-        sel = self.file_tree.selection()
-        if not sel:
-            var.set(False)
-            return
-        stat = var.get()
-        for item in sel:
-            p = os.path.normpath(self.file_tree.item(item, "values")[0])
-            if self.media_dict[p]["locked"]:var.set(not stat);continue #如果文件时锁定则跳过
-            lst = self.media_dict[p]["tag_extra"]
-            if stat and name not in lst:
-                lst.append(name)
-            elif not stat and name in lst:
-                lst.remove(name)
-            self.save_file_meta(p, self.media_dict[p])
-            # 切换分类刷新对应行
-            self.refresh_file_row(p, item)
-
-    ##        self.refresh_file_list(self.current_select_path)
 
     def on_tree_select(self, e):
         for v in self.tag_main_check_map.values():
@@ -1986,14 +1966,7 @@ class MediaManagerApp:
             with open(ads, "r", encoding="utf-8") as f:
                 return json.load(f)
         except:
-            return {
-                "score": 0,
-                "tag_main": [],
-                "tag_extra": [],
-                "resolution": "",
-                "definition": "",
-                "locked":False
-            }
+            return {}
 
 
     def _do_save_keep_time(self, fp, ads, data):
@@ -2106,26 +2079,14 @@ class MediaManagerApp:
     def scan_media(self, force_gen=False):
         self.media_dict.clear()
         cfg = self.config_data
-        ev = cfg.get("enable_video", True)
-        ea = cfg.get("enable_audio", False)
-        ei = cfg.get("enable_image", False)
-        ez = cfg.get("enable_archive", False)
-        eo = cfg.get("enable_other", False)
-        o_suf = [
-            x.strip().lower()
-            for x in cfg.get("other_suffix", OTHER_DEFAULT_SUFFIX).split(";")
-            if x.strip()
-        ]
-        file_count = 0
-        # 针对folders新旧模式切换
-        if cfg.get("folders", []):
-            if isinstance(cfg["folders"], list):
-                tmp = {}
-                for item in cfg["folders"]:
-                    if isinstance(item, str):
-                        tmp[item] = True
-                cfg["folders"] = tmp
+        enable_video = cfg.get("enable_video", True)
+        enable_audio = cfg.get("enable_audio", False)
+        enable_image = cfg.get("enable_image", False)
+        enable_archive = cfg.get("enable_archive", False)
+        enable_other = cfg.get("enable_other", False)
+        o_suf = [x.strip().lower() for x in cfg.get("other_suffix", OTHER_DEFAULT_SUFFIX).replace("*","").split(";") if x.strip()]
 
+        file_count = 0
         for dp in cfg.get("folders", {}):
             if not cfg["folders"][dp]:
                 continue  # 不勾选就跳过
@@ -2133,95 +2094,59 @@ class MediaManagerApp:
             if not os.path.isdir(dp):
                 continue
             for root, _, files in os.walk(dp):
-                for fn in files:
+                for filename_base in files:
                     file_count += 1
-                    full = os.path.normpath(os.path.join(root, fn))
-                    ext = os.path.splitext(fn.lower())[-1]
-                    ftype = ""
-                    if ev and ext in VIDEO_FORMATS:
-                        ftype = "视频"
-                    elif ea and ext in AUDIO_FORMATS:
-                        ftype = "音频"
-                    elif ei and ext in IMAGE_FORMATS:
-                        ftype = "图片"
-                    elif ez and ext in ZIP_FORMATS:
-                        ftype = "压缩包"
-                    elif eo and ext in o_suf:
-                        ftype = "其他文档"
-                    if not ftype:
+                    filename_full = os.path.normpath(os.path.join(root, filename_base))
+                    filename_ext = os.path.splitext(filename_base.lower())[-1]
+                    filename_type = ""
+                    if enable_video and filename_ext in VIDEO_FORMATS:
+                        filename_type = "视频"
+                    elif enable_audio and filename_ext in AUDIO_FORMATS:
+                        filename_type = "音频"
+                    elif enable_image and filename_ext in IMAGE_FORMATS:
+                        filename_type = "图片"
+                    elif enable_archive and filename_ext in ZIP_FORMATS:
+                        filename_type = "压缩"
+                    elif enable_other and filename_ext in o_suf:
+                        filename_type = "其他"
+                    if not filename_type:
                         continue
-                    sz = os.path.getsize(full)
-                    meta = self.load_file_meta(full)
-                    res, defi, info = None, None, None
-                    #新增locked标识 做个临时转换，2027取消
-                    if not "locked" in meta:
-                        meta["locked"]=False
-                    
-                    if ftype == "视频":
-                        # if ftype=="视频" :#用于手动处理，刷新清晰度
-                        res, defi, info = (
-                            meta.get("resolution", ""),
-                            meta.get("definition", ""),
-                            meta.get("video_info", ""),
-                        )
-                        meta = {
-                            "name": fn,
-                            "size": sz,
-                            "type": ftype,
-                            "score": meta["score"],
-                            "tag_main": meta["tag_main"],
-                            "tag_extra": meta["tag_extra"],
-                            "resolution": res,
-                            "definition": defi,
-                            "locked":meta["locked"],
-                            "video_info": info,
+                    meta = self.load_file_meta(filename_full)
+                    #判断是否需要重建
+                    need_rebuild = True
+                    if meta and not force_gen:
+                        if filename_type == "视频":
+                            need_rebuild = not bool(meta.get("resolution") and meta.get("definition") and meta.get("video_info"))
+                        elif filename_type == "图片":
+                            need_rebuild = not bool(meta.get("resolution") and meta.get("definition") and meta.get("image_info"))
+                        else:
+                            need_rebuild = False
+                        if not bool(meta.get("name") and meta.get("size") and meta.get("date")):
+                            need_rebuild = True
+
+                            
+                    if need_rebuild :
+                        print("rebuild",filename_full)
+                        stat = os.stat(filename_full)
+                        meta={
+                            "name": filename_base,
+                            "size": stat.st_size,
+                            "type": filename_type,
+                            "date": datetime.fromtimestamp(min(stat.st_mtime,stat.st_birthtime)).strftime("%Y%m%d"),
+                            "score": meta.get("score",0),
+                            "tag_main": meta.get("tag_main",""),
+                            "tag_extra": meta.get("tag_extra",""),
+                            "resolution": meta.get("resolution",""),
+                            "definition": meta.get("definition",""),
+                            "locked":meta.get("locked",False),
                         }
-                        if not (res or defi or info) or force_gen:
-                            (
-                                meta["resolution"],
-                                meta["definition"],
-                                meta["video_info"],
-                            ) = self.get_video_def_info(full)
-                            self.save_file_meta(full, meta)
-                        self.media_dict[full] = meta
-                    elif ftype == "图片":
-                        res, defi, info = (
-                            meta.get("resolution", ""),
-                            meta.get("definition", ""),
-                            meta.get("image_info", ""),
-                        )
-                        meta = {
-                            "name": fn,
-                            "size": sz,
-                            "type": ftype,
-                            "score": meta["score"],
-                            "tag_main": meta["tag_main"],
-                            "tag_extra": meta["tag_extra"],
-                            "resolution": res,
-                            "definition": defi,
-                            "locked":meta["locked"],
-                            "image_info": info,
-                        }
-                        if not (res or defi or info) or force_gen:
-                            (
-                                meta["resolution"],
-                                meta["definition"],
-                                meta["image_info"],
-                            ) = self.get_image_def_info(full)
-                            self.save_file_meta(full, meta)
-                        self.media_dict[full] = meta
-                    else:
-                        self.media_dict[full] = {
-                            "name": fn,
-                            "size": sz,
-                            "type": ftype,
-                            "score": meta["score"],
-                            "tag_main": meta["tag_main"],
-                            "tag_extra": meta["tag_extra"],
-                            "resolution": "无",
-                            "definition": "未知",
-                            "locked":False,
-                        }
+                        if filename_type == "视频":
+                            (meta["resolution"],meta["definition"],meta["video_info"],) = self.get_video_def_info(filename_full)
+                        elif filename_type == "图片":
+                            (meta["resolution"],meta["definition"],meta["image_info"],) = self.get_image_def_info(filename_full)
+                        self.save_file_meta(filename_full, meta)
+                    self.media_dict[filename_full] = meta
+
         self.refresh_file_list()
         return file_count, len(self.media_dict)
 
@@ -2378,6 +2303,7 @@ class MediaManagerApp:
         target = lst[min(sel_id, len(lst)-1)]
         self.file_tree.selection_set(target)
         self.file_tree.focus(target)
+        self.nav_item()
 
         # self.refresh_file_list()
 
@@ -2541,7 +2467,7 @@ class MediaManagerApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    font_size_adjust(0,"A")
+    font_size_adjust()
     cycle_color()
     if 18 <= datetime.now().hour or datetime.now().hour < 7:
         cycle_color()#如果是夜晚初始主题为深色
