@@ -20,5 +20,5 @@ PyInstaller ^
 --exclude-module=pydoc ^
 --exclude-module=distutils ^
 --name="媒体文件分类管理工具v2.2" ^
-"..\zen_file_sorter.py"
+"..\zen_file_sorter.pyw"
 pause

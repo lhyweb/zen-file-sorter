@@ -36,7 +36,7 @@ ZEN_THEME = {
     "hover": "#e5f3ff",  # 按钮/控件 hover
 }
 ZEN_FONT=["Microsoft YaHei",11]
-ZEN_FONT_S=["Microsoft YaHei",11]
+ZEN_FONT_S=["Microsoft YaHei",10]
 VIDEO_FORMATS = (".mp4", ".mkv", ".avi", ".mov", ".flv", ".rmvb", ".wmv")
 AUDIO_FORMATS = (".mp3", ".wav", ".flac", ".ape", ".ogg")
 IMAGE_FORMATS = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".heic", ".raw", ".webp")
@@ -191,15 +191,15 @@ def font_size_adjust(step=0,mode=""):
         ZEN_FONT_S[1]+= step
         ZEN_FONT[1]+= step
     elif mode=="RESET":
-        ZEN_FONT_S[1] = 10
         ZEN_FONT[1] = 11
+        ZEN_FONT_S[1] = 10
     elif mode=="A":
         ZEN_FONT[1]+= step
     elif mode=="T":
         ZEN_FONT_S[1]+= step
     else:
         return
-    if mode:
+    if mode and mode!="RESET":
         zen_toast(f"正常字体：{ZEN_FONT[1]}号\n列表字体：{ZEN_FONT_S[1]}号\n弹窗字体：{ZEN_FONT[1]+6}号")
     root.option_add("*Font", ZEN_FONT)
     # root.option_add("*TCombobox*Listbox.font", ZEN_FONT)
@@ -755,7 +755,7 @@ class SettingUI(tk.Toplevel):
         ttk.Button(fr_cfg, text="A-", command=lambda: font_size_adjust(-1,"A"), width=3).pack(side=tk.LEFT, padx=2)
         ttk.Button(fr_cfg, text="T+", command=lambda: font_size_adjust(1,"T"), width=3).pack(side=tk.LEFT, padx=2)
         ttk.Button(fr_cfg, text="T-", command=lambda: font_size_adjust(-1,"T"), width=3).pack(side=tk.LEFT, padx=2)
-        ttk.Button(fr_cfg, text="RST", command=lambda: font_size_adjust(0,"RESET"), width=3).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fr_cfg, text="RESET", command=lambda: font_size_adjust(0,"RESET"), width=6).pack(side=tk.LEFT, padx=2)
 
 
         fr_dir = ttk.LabelFrame(main_fr, text="🗁扫描目录")

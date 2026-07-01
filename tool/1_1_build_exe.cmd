@@ -1,2 +1,2 @@
-pyinstaller -F -w ..\zen_file_sorter.py
+pyinstaller -F -w ..\zen_file_sorter.pyw
 pause
